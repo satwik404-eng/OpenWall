@@ -1,4 +1,14 @@
-# Validation — 22 October 2026
+# Validation — 23 October 2026
+
+## Version 1.2
+
+Mac app and bundled screen saver build successfully on Apple Silicon, targeting macOS 14+. The installed app is version 1.2.0 in Applications. All Mac integration checks pass with one connected display, including all seven timer durations, exact expiry, ordered wraparound, Forever, a real Foundation timer firing, immediate application, active-entry removal, reorder, pause-aware countdowns, persisted remaining time, and legacy shuffle migration. Nine unique motion wallpapers are included.
+
+The installed native UI was inspected with all nine motion cards, direct Apply actions, playlist controls, and screen-saver controls. OpenWall.saver installed successfully and was selected in System Settings on macOS 27.2. A separate native check verified start/stop layer rendering and that the installed bundle principal class loads. Actual locked-session transitions, password prompt timing, video playback inside the OS screen-saver host, multi-display screen savers, and long-term power use remain unverified.
+
+Both Windows x64 and ARM64 self-contained builds compile with .NET 10. The platform-independent C# playlist checks pass: all durations, nine unique presets, duplicate prevention, immediate apply, exact expiry to Forever, freeze/resume, wraparound, reorder, removal of an active entry, target isolation, persistence, and invalid duration rejection. Windows runtime testing is recorded separately below. Build success does not establish runtime compatibility with Explorer, WebView2, the secure screen-saver desktop, or the LockScreen API.
+
+
 
 ## Version 1.1 full-screen pause
 

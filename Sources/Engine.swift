@@ -128,6 +128,12 @@ struct MotionArtwork: View {
 
     static func colors(for preset: String) -> [Color] {
         switch preset {
+        case "ember": return [Color(red: 0.12, green: 0.015, blue: 0.02), Color(red: 0.84, green: 0.13, blue: 0.045), Color(red: 1, green: 0.58, blue: 0.16)]
+        case "amethyst": return [Color(red: 0.055, green: 0.015, blue: 0.14), Color(red: 0.42, green: 0.16, blue: 0.77), Color(red: 0.81, green: 0.56, blue: 1)]
+        case "glacier": return [Color(red: 0.02, green: 0.10, blue: 0.17), Color(red: 0.19, green: 0.56, blue: 0.68), Color(red: 0.79, green: 0.96, blue: 0.98)]
+        case "solar": return [Color(red: 0.17, green: 0.05, blue: 0.02), Color(red: 0.88, green: 0.40, blue: 0.08), Color(red: 1, green: 0.86, blue: 0.36)]
+        case "midnight": return [Color(red: 0.025, green: 0.03, blue: 0.055), Color(red: 0.18, green: 0.22, blue: 0.34), Color(red: 0.57, green: 0.66, blue: 0.83)]
+        case "rose": return [Color(red: 0.12, green: 0.025, blue: 0.09), Color(red: 0.69, green: 0.25, blue: 0.45), Color(red: 1, green: 0.68, blue: 0.75)]
         case "dusk": return [Color(red: 0.10, green: 0.025, blue: 0.14), Color(red: 0.97, green: 0.33, blue: 0.20), Color(red: 1, green: 0.70, blue: 0.37)]
         case "ocean": return [Color(red: 0.012, green: 0.04, blue: 0.15), Color(red: 0.06, green: 0.30, blue: 0.74), Color(red: 0.22, green: 0.83, blue: 0.92)]
         default: return [Color(red: 0.015, green: 0.07, blue: 0.085), Color(red: 0.05, green: 0.52, blue: 0.39), Color(red: 0.50, green: 0.91, blue: 0.60)]

@@ -12,7 +12,13 @@ struct Wallpaper: Codable, Identifiable, Equatable {
     static let presets = [
         Wallpaper(id: "aurora", name: "Northern lights", filename: nil),
         Wallpaper(id: "dusk", name: "Afterglow", filename: nil),
-        Wallpaper(id: "ocean", name: "Deep current", filename: nil)
+        Wallpaper(id: "ocean", name: "Deep current", filename: nil),
+        Wallpaper(id: "ember", name: "Ember glow", filename: nil),
+        Wallpaper(id: "amethyst", name: "Amethyst drift", filename: nil),
+        Wallpaper(id: "glacier", name: "Glacier light", filename: nil),
+        Wallpaper(id: "solar", name: "Solar tide", filename: nil),
+        Wallpaper(id: "midnight", name: "Midnight silk", filename: nil),
+        Wallpaper(id: "rose", name: "Rosewater", filename: nil)
     ]
 }
 
@@ -22,14 +28,16 @@ struct LibraryState: Codable {
     var manualPause = false
     var pauseOnBattery = true
     var pauseInFullScreen = true
-    var shuffleMinutes = 0
+    var playlist: [PlaylistEntry] = []
+    var playlistPlayback: [String: PlaylistPlayback] = [:]
     var speed = 1.0
 
     init() {}
 
     private enum CodingKeys: String, CodingKey {
-        case videos, assignments, manualPause, pauseOnBattery, pauseInFullScreen, shuffleMinutes, speed
+        case videos, assignments, manualPause, pauseOnBattery, pauseInFullScreen, playlist, playlistPlayback, speed
     }
+    private enum LegacyKeys: String, CodingKey { case shuffleMinutes }
 
     init(from decoder: Decoder) throws {
         let values = try decoder.container(keyedBy: CodingKeys.self)
@@ -38,8 +46,22 @@ struct LibraryState: Codable {
         manualPause = try values.decodeIfPresent(Bool.self, forKey: .manualPause) ?? false
         pauseOnBattery = try values.decodeIfPresent(Bool.self, forKey: .pauseOnBattery) ?? true
         pauseInFullScreen = try values.decodeIfPresent(Bool.self, forKey: .pauseInFullScreen) ?? true
-        shuffleMinutes = try values.decodeIfPresent(Int.self, forKey: .shuffleMinutes) ?? 0
+        playlist = try values.decodeIfPresent([PlaylistEntry].self, forKey: .playlist) ?? []
+        playlistPlayback = try values.decodeIfPresent([String: PlaylistPlayback].self, forKey: .playlistPlayback) ?? [:]
         speed = try values.decodeIfPresent(Double.self, forKey: .speed) ?? 1
+        if !values.contains(.playlist) {
+            let legacy = try decoder.container(keyedBy: LegacyKeys.self)
+            let minutes = try legacy.decodeIfPresent(Int.self, forKey: .shuffleMinutes) ?? 0
+            if minutes > 0 {
+                let duration = WallpaperDuration.allCases.filter { $0 != .forever && $0.rawValue >= minutes * 60 }.min { $0.rawValue < $1.rawValue } ?? .oneDay
+                playlist = (Wallpaper.presets + videos).map { PlaylistEntry(wallpaperID: $0.id, duration: duration) }
+                for (screenID, wallpaperID) in assignments {
+                    if let entry = playlist.first(where: { $0.wallpaperID == wallpaperID }) {
+                        playlistPlayback[screenID] = PlaylistPlayback(entryID: entry.id, remainingSeconds: duration.seconds)
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -127,7 +149,9 @@ final class Library {
     var loginEnabled = false
     @ObservationIgnored var engine: WallpaperEngine?
     @ObservationIgnored private var batteryTimer: Timer?
-    @ObservationIgnored private var shuffleTimer: Timer?
+    @ObservationIgnored var playlistTimer: Timer?
+    @ObservationIgnored var playlistAnchors: [String: TimeInterval] = [:]
+    @ObservationIgnored let clock: @MainActor () -> TimeInterval
     @ObservationIgnored private var fullScreenTimer: Timer?
     @ObservationIgnored private let fullScreenProbe: @MainActor () -> Bool
     @ObservationIgnored private var tokens: [NSObjectProtocol] = []
@@ -151,8 +175,10 @@ final class Library {
         return "Wallpaper is live"
     }
 
-    init(fullScreenProbe: @escaping @MainActor () -> Bool = { FullScreenDetector.isActive }) {
+    init(fullScreenProbe: @escaping @MainActor () -> Bool = { FullScreenDetector.isActive },
+         clock: @escaping @MainActor () -> TimeInterval = { ProcessInfo.processInfo.systemUptime }) {
         self.fullScreenProbe = fullScreenProbe
+        self.clock = clock
         do { state = try Storage.load() }
         catch { notice = "Your saved library could not be read. The original file is untouched. \(error.localizedDescription)" }
     }
@@ -190,10 +216,10 @@ final class Library {
                 self.updatePlayback()
             }
         }
-        configureShuffle()
     }
 
     func refreshDisplays() {
+        checkpointPlaylistClocks()
         displays = NSScreen.screens.map { Display(id: $0.wallpaperID, name: $0.localizedName) }
         if target != "all", !displays.contains(where: { $0.id == target }) { target = "all" }
     }
@@ -201,6 +227,19 @@ final class Library {
     func save() {
         do { try Storage.save(state) }
         catch { notice = "Could not save settings: \(error.localizedDescription)" }
+    }
+
+    func stopMonitoring() {
+        batteryTimer?.invalidate()
+        fullScreenTimer?.invalidate()
+        batteryTimer = nil
+        fullScreenTimer = nil
+        for token in tokens {
+            NSWorkspace.shared.notificationCenter.removeObserver(token)
+            NotificationCenter.default.removeObserver(token)
+        }
+        tokens.removeAll()
+        started = false
     }
 
     func restore() {
@@ -213,9 +252,14 @@ final class Library {
     }
 
     func apply(_ item: Wallpaper) {
+        checkpointPlaylistClocks()
+        selection = item.id
         let screens = NSScreen.screens.filter { target == "all" || $0.wallpaperID == target }
         for screen in screens {
             state.assignments[screen.wallpaperID] = item.id
+            if let entry = playlistEntry(for: item.id) {
+                state.playlistPlayback[screen.wallpaperID] = PlaylistPlayback(entryID: entry.id, remainingSeconds: entry.duration.seconds)
+            } else { state.playlistPlayback.removeValue(forKey: screen.wallpaperID) }
         }
         updatePlayback()
         for screen in screens {
@@ -225,7 +269,9 @@ final class Library {
     }
 
     func stop() {
+        checkpointPlaylistClocks()
         state.assignments.removeAll()
+        state.playlistPlayback.removeAll()
         engine?.closeAll()
         updatePlayback()
         save()
@@ -252,32 +298,11 @@ final class Library {
             fullScreenActive = false
         }
         engine?.setPaused(paused, speed: state.speed)
+        if paused {
+            if playlistTimer != nil { checkpointPlaylistClocks() }
+        } else if playlistTimer == nil { schedulePlaylistTimer() }
     }
-    func settingsChanged() { updatePlayback(); configureShuffle(); save() }
-
-    func configureShuffle() {
-        shuffleTimer?.invalidate()
-        shuffleTimer = nil
-        guard state.shuffleMinutes > 0 else { return }
-        shuffleTimer = Timer.scheduledTimer(withTimeInterval: Double(state.shuffleMinutes) * 60, repeats: true) { [weak self] _ in
-            Task { @MainActor in
-                guard let self, !self.paused else { return }
-                self.shuffle()
-            }
-        }
-    }
-
-    func shuffle() {
-        guard !state.assignments.isEmpty else { return }
-        for screen in NSScreen.screens where state.assignments[screen.wallpaperID] != nil {
-            let current = state.assignments[screen.wallpaperID]
-            if let next = wallpapers.filter({ $0.id != current }).randomElement() {
-                state.assignments[screen.wallpaperID] = next.id
-                engine?.apply(next, to: screen, paused: paused, speed: state.speed)
-            }
-        }
-        save()
-    }
+    func settingsChanged() { updatePlayback(); save() }
 
     func setLogin(_ enabled: Bool) {
         do {
@@ -318,6 +343,7 @@ final class Library {
 
     func remove(_ item: Wallpaper) {
         guard let filename = item.filename else { return }
+        if let entry = playlistEntry(for: item.id) { removeFromPlaylist(entry.id) }
         state.assignments = state.assignments.filter { $0.value != item.id }
         state.videos.removeAll { $0.id == item.id }
         if selection == item.id { selection = "aurora" }

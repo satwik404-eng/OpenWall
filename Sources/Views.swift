@@ -1,7 +1,7 @@
 import SwiftUI
 import AVKit
 
-private let accent = Color(red: 0.66, green: 0.91, blue: 0.68)
+let accent = Color(red: 0.66, green: 0.91, blue: 0.68)
 
 struct LibraryView: View {
     @Bindable var library: Library
@@ -12,6 +12,7 @@ struct LibraryView: View {
             VStack(alignment: .leading, spacing: 24) {
                 header
                 if library.section == "Settings" { settings }
+                else if library.section == "Playlist" { PlaylistView(library: library) }
                 else { content }
                 Spacer(minLength: 0)
                 footer
@@ -39,6 +40,7 @@ struct LibraryView: View {
                 nav("All wallpapers", icon: "square.grid.2x2")
                 nav("Motion collection", icon: "sparkles")
                 nav("My videos", icon: "film")
+                nav("Playlist", icon: "list.bullet.rectangle")
                 nav("Settings", icon: "slider.horizontal.3")
             }
             Spacer()
@@ -72,7 +74,7 @@ struct LibraryView: View {
             VStack(alignment: .leading, spacing: 5) {
                 Text(library.section == "Settings" ? "Make yourself at home." : "Give your desktop a little life.")
                     .font(.system(size: 27, weight: .semibold, design: .rounded))
-                Text(library.section == "Settings" ? "Small preferences. Your way." : "Original motion. Your videos. No subscription.")
+                Text(library.section == "Settings" ? "Small preferences. Your way." : "Click a wallpaper to apply it. Build a playlist to keep it changing.")
                     .font(.system(size: 12)).foregroundStyle(.secondary)
             }
             Spacer()
@@ -105,7 +107,10 @@ struct LibraryView: View {
                 } else {
                     LazyVGrid(columns: [GridItem(.adaptive(minimum: 185), spacing: 16)], spacing: 16) {
                         ForEach(library.filtered) { item in
-                            WallpaperCard(item: item, selected: library.selection == item.id, active: library.state.assignments.values.contains(item.id), select: { library.selection = item.id }, remove: { library.remove(item) })
+                            WallpaperCard(item: item, selected: library.selection == item.id,
+                                          active: library.state.assignments.values.contains(item.id),
+                                          inPlaylist: library.playlistEntry(for: item.id) != nil,
+                                          apply: { library.apply(item) }, add: { library.addToPlaylist(item) }, remove: { library.remove(item) })
                         }
                     }
                 }
@@ -127,10 +132,11 @@ struct LibraryView: View {
                             .font(.system(size: 12)).foregroundStyle(.white.opacity(0.70))
                     }
                     Spacer()
-                    Button { library.apply(library.selected) } label: {
-                        Label("Set wallpaper", systemImage: "arrow.up.right").font(.system(size: 12, weight: .semibold)).padding(.horizontal, 14).padding(.vertical, 11)
+                    Button { library.addToPlaylist(library.selected) } label: {
+                        Label(library.playlistEntry(for: library.selected.id) == nil ? "Add to playlist" : "In playlist", systemImage: "text.badge.plus").font(.system(size: 12, weight: .semibold)).padding(.horizontal, 14).padding(.vertical, 11)
                             .foregroundStyle(.black).background(accent, in: RoundedRectangle(cornerRadius: 8))
                     }.buttonStyle(.plain)
+                        .disabled(library.playlistEntry(for: library.selected.id) != nil)
                 }
             }.padding(24)
         }
@@ -176,11 +182,14 @@ struct LibraryView: View {
                 Picker("Video speed", selection: $library.state.speed) {
                     Text("0.5×").tag(0.5); Text("1×").tag(1.0); Text("1.5×").tag(1.5); Text("2×").tag(2.0)
                 }.onChange(of: library.state.speed) { library.settingsChanged() }
-                Picker("Shuffle active displays", selection: $library.state.shuffleMinutes) {
-                    Text("Off").tag(0); Text("Every minute").tag(1); Text("Every 5 minutes").tag(5)
-                    Text("Every 15 minutes").tag(15); Text("Every 30 minutes").tag(30)
-                }.onChange(of: library.state.shuffleMinutes) { library.settingsChanged() }
+                Button("Edit wallpaper playlist") { library.section = "Playlist" }
                 Text("Full-screen or display-covering apps pause all wallpapers. Playback resumes when you return, unless another pause setting is active. Videos are muted; display sleep also pauses playback.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            Section("Lock screen & screen saver") {
+                Button("Install OpenWall screen saver…") { library.installScreenSaver() }
+                Button("Open Screen Saver settings") { library.openScreenSaverSettings() }
+                Text("Choose OpenWall in macOS Screen Saver settings once. It reads the current wallpaper from your local OpenWall library, including imported videos. Set Require password to Immediately in Lock Screen settings for a protected screen saver. The sign-in prompt and the screen saver are separate OS views.")
                     .font(.caption).foregroundStyle(.secondary)
             }
             Section("Your Mac") {
@@ -191,7 +200,7 @@ struct LibraryView: View {
             Section("Local by design") {
                 Text("No account, analytics, subscription, or cloud connection. Imported videos are copied into OpenWall’s library; your original files stay where they are.")
                 Button("Show local library in Finder") { NSWorkspace.shared.open(Storage.root) }
-                Text("OpenWall 1.1 · MIT License\nIndependent software. Not affiliated with Wallper.").font(.caption).foregroundStyle(.secondary)
+                Text("OpenWall 1.2 · MIT License\nIndependent software. Not affiliated with Wallper.").font(.caption).foregroundStyle(.secondary)
             }
         }.formStyle(.grouped)
     }
@@ -216,10 +225,13 @@ struct WallpaperCard: View {
     let item: Wallpaper
     let selected: Bool
     let active: Bool
-    let select: () -> Void
+    let inPlaylist: Bool
+    let apply: () -> Void
+    let add: () -> Void
     let remove: () -> Void
     var body: some View {
-        Button(action: select) {
+        VStack(alignment: .leading, spacing: 10) {
+          Button(action: apply) {
             VStack(alignment: .leading, spacing: 9) {
                 WallpaperPreview(item: item).frame(height: 105).clipped()
                     .clipShape(RoundedRectangle(cornerRadius: 9))
@@ -235,12 +247,13 @@ struct WallpaperCard: View {
                     if selected { Circle().fill(accent).frame(width: 5, height: 5) }
                 }
             }
-            .padding(7)
-            .background(selected ? .white.opacity(0.045) : .clear, in: RoundedRectangle(cornerRadius: 12))
-            .overlay { RoundedRectangle(cornerRadius: 12).stroke(selected ? accent.opacity(0.7) : .white.opacity(0.07), lineWidth: 1) }
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel("Select \(item.name)")
+          }.buttonStyle(.plain).accessibilityLabel("Apply \(item.name)")
+          Button(action: add) { Label(inPlaylist ? "In playlist" : "Add to playlist", systemImage: inPlaylist ? "checkmark" : "plus")
+                  .font(.system(size: 10, weight: .medium)).foregroundStyle(inPlaylist ? .secondary : accent)
+          }.buttonStyle(.plain).disabled(inPlaylist).accessibilityLabel("Add \(item.name) to playlist")
+        }.padding(8)
+        .background(selected ? .white.opacity(0.045) : .clear, in: RoundedRectangle(cornerRadius: 12))
+        .overlay { RoundedRectangle(cornerRadius: 12).stroke(selected ? accent.opacity(0.7) : .white.opacity(0.07), lineWidth: 1) }
         .contextMenu { if item.isVideo { Button("Remove from OpenWall", role: .destructive, action: remove) } }
     }
 }
@@ -253,7 +266,7 @@ struct StatusMenu: View {
         Button("Open OpenWall") { openWindow(id: "library"); NSApp.activate(ignoringOtherApps: true) }
         Divider()
         Button(library.state.manualPause ? "Resume wallpapers" : "Pause wallpapers") { library.togglePause() }
-        Button("Shuffle now") { library.shuffle() }.disabled(library.state.assignments.isEmpty)
+        Button("Next in playlist") { library.nextInPlaylist() }.disabled(!library.hasPlaylistPlayback)
         Button("Stop all wallpapers") { library.stop() }.disabled(library.state.assignments.isEmpty)
         Divider()
         Button("Quit OpenWall") { NSApp.terminate(nil) }.keyboardShortcut("q")

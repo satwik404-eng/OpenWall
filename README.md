@@ -1,115 +1,119 @@
 # OpenWall
 
-<img src="Resources/OpenWall.png" width="104" height="104" align="right" alt="OpenWall app icon">
+Free, open-source live wallpapers for macOS, with a Windows preview. MIT licensed.
+No account, subscription, analytics, paid catalog, or cloud library.
 
-A free, independent, open-source live wallpaper app for macOS. MIT licensed.
-Written from scratch in Swift, SwiftUI, AppKit, and AVFoundation. No third-party
-packages, account, subscription, license key, analytics, or network requests.
-No Wallper code, assets, APIs, or services are used.
+[Download the latest release](https://github.com/satwik404-eng/OpenWall/releases/latest)
 
-**[Download for Apple Silicon](https://github.com/satwik404-eng/OpenWall/releases/latest/download/OpenWall-macOS-arm64.zip)**
- · **[All releases](https://github.com/satwik404-eng/OpenWall/releases)**
- · **[MIT license](LICENSE)**
+## One click to apply
 
-## Download and install
+Click any wallpaper card to apply it immediately to the selected displays.
+There is no second **Set wallpaper** step. **Add to playlist** is a separate action.
 
-The prebuilt app requires an **Apple Silicon Mac (M1 or later), macOS 14+**.
-This is an early release, tested on one Mac; see [validation](VALIDATION.md).
+The Motion collection includes nine original animations made from code:
+Northern lights, Afterglow, Deep current, Ember glow, Amethyst drift, Glacier light,
+Solar tide, Midnight silk, and Rosewater. You can also import your own video files.
 
-1. Download the ZIP above and extract it, or download the DMG from the latest release.
-2. Move **OpenWall.app** into **Applications**. With the DMG, drag it onto the Applications shortcut.
-3. Open OpenWall, pick a wallpaper or import a video, and click **Set wallpaper**.
+## Playlist
 
-**Code signing:** this free build is ad-hoc signed, **not Apple-notarized**.
-macOS may block the first launch. You can review and build the source yourself,
-or, if you choose to trust the downloaded app, use Apple's documented
-[Privacy & Security → Open Anyway procedure](https://support.apple.com/102445).
-Release assets include SHA-256 checksums so you can verify the download.
+Add wallpapers, arrange their order with the up/down controls, and give each one
+its own duration: **1 day, 6 hours, 3 hours, 1 hour, 30 minutes, 5 minutes, or Forever**.
+Start the playlist to cycle in order. Forever holds until you choose Next or another
+wallpaper. Clicking a playlist member starts it immediately with its full duration;
+clicking a wallpaper outside the playlist stops rotation on those displays.
 
-Intel Mac users can build from source on an Intel Mac; no prebuilt Intel download
-is supplied and Intel execution has not been verified.
+Timers freeze while desktop playback is paused and resume with their time remaining.
+Normal quit saves that remaining time. Stopping the playlist leaves the current
+wallpaper visible; Stop removes the desktop wallpapers. Existing shuffle settings
+on Mac migrate to an ordered playlist.
 
-## Use the app
+## Install on Mac
 
-1. Open the supplied **OpenWall.app**. You can move it to `/Applications`.
-2. Pick **Northern lights**, **Afterglow**, or **Deep current**, then click
-   **Set wallpaper**. These original animated designs are generated from code.
-3. Use **Import videos** (Command-O) to add your own videos. Supported formats
-   depend on the codecs available in macOS; MP4 H.264/HEVC and MOV are good choices.
-4. Choose **All displays** or a particular display before applying a wallpaper.
-5. The menu bar mountain icon has pause, shuffle, stop, and quit controls.
-   Closing the library window keeps wallpapers running.
-6. **Stop** or **Quit** removes OpenWall's desktop windows, revealing your
-   existing wallpaper immediately. macOS wallpaper settings are never rewritten.
+Download OpenWall-macOS-arm64.dmg, open it, and drag OpenWall to Applications.
+The prebuilt app requires **Apple Silicon and macOS 14+**. It is ad-hoc signed,
+not Apple-notarized; macOS may require approval in Privacy & Security.
 
-Videos loop silently with aspect-fill cropping. **Pause in full screen** is
-enabled by default: when the active app covers a display, OpenWall pauses all
-video and procedural wallpapers. It resumes when you return to the desktop,
-unless you paused manually or another automatic pause still applies. This also
-handles full-screen video and display-covering windows, including the camera
-housing safe area on MacBooks. You can turn it off in Settings.
+Imported MP4/MOV and other supported videos loop silently using AVFoundation.
+Full-screen/display-covering apps pause playback automatically. Battery and display
+sleep pause are also available, with per-display assignment, menu-bar controls,
+playback speed, and optional login startup.
 
-Detection uses window bounds and process IDs, without reading window titles or
-capturing the screen. App/Space changes trigger a check, with a two-second
-fallback for in-window full-screen transitions (up to roughly 2.5 seconds with
-timer coalescing). Checks stop while already paused manually, on battery with
-battery pause enabled, asleep, or without an active wallpaper. Repeated checks
-do not restart playback or rebuild an unchanged procedural renderer.
+### Mac screen saver
 
-Other settings include video speed, battery pause (checked every 15 seconds),
-timed shuffle, and optional login startup. Login startup uses Apple's SMAppService and may need approval in
-System Settings. Move the app to Applications before enabling it.
+In OpenWall Settings, choose **Install OpenWall screen saver**. Then select
+**OpenWall** in System Settings → Wallpaper → Screen Saver → Other → Show All
+(macOS 26+), or System Settings → Screen Saver on older versions.
 
-## Local storage
+The .saver reads the latest wallpaper assignments and videos from OpenWall's own
+local library cache, so future wallpaper clicks are reflected the next time the
+screen saver starts. Imported videos loop; the motion collection uses a lightweight
+animated gradient in the same palette. Battery pause shows a still image. The OS
+controls idle timing, display sleep, password protection, and the sign-in prompt.
+For password protection, choose Require password Immediately in Lock Screen settings.
 
-Imported videos are **copied**, not moved, to
-`~/Library/Application Support/org.openwall.desktop/Media/`. Thumbnails and
-`library.json` live alongside that folder. Removing a video from OpenWall
-deletes its library copy, leaving your original file untouched. Settings and
-per-display wallpaper choices are restored when you reopen the app.
+This is an OS screen saver. It does not replace Apple's aerial downloads or rewrite
+Apple's lock-screen cache, and it does not change the FileVault startup login screen.
+Changing the wallpaper while the saver is already running takes effect next start.
 
-Do not delete source videos until import has finished. Very large videos need
-enough free disk space for a complete local copy. If the library JSON cannot
-be decoded, the app reports it and leaves the file untouched until a later
-user action saves new settings.
+## Install on Windows (preview)
+
+Download OpenWall-Windows-x64-preview.zip for Intel/AMD PCs, or
+OpenWall-Windows-arm64-preview.zip for ARM PCs. Extract the entire ZIP and run
+OpenWall.exe. Keep all extracted files together. Requires **Windows 10 version
+2004+ or Windows 11** and the [Microsoft Edge WebView2 Evergreen Runtime](https://developer.microsoft.com/microsoft-edge/webview2/).
+.NET is bundled; no separate .NET installation or administrator access is needed.
+
+The Windows app includes the motion collection, local video import, direct click to
+apply, per-display playlists, battery/full-screen/session-lock pause, and tray controls.
+H.264 MP4 is the most portable video choice; codec availability depends on Windows.
+Explorer embedding uses an undocumented WorkerW interface and may vary by Windows
+build. The Windows release is explicitly a **preview**, with verification limits in
+[VALIDATION.md](VALIDATION.md).
+
+### Windows screen saver and lock-screen image
+
+In Settings, choose **Enable OpenWall screen saver**. This registers the included
+OpenWall.scr for your current account, enables it, enables password protection,
+and opens Windows screen-saver settings. Keep the extracted folder in place.
+The saver reads the current per-display assignments. Windows controls its idle
+activation and the sign-in screen shown on resume. /s, /p, and /c modes are
+included for full-screen, Control Panel preview, and configuration.
+
+**Use current wallpaper as lock-screen image** captures a still frame from the
+active wallpaper and sets it through Windows' LockScreen API. Device policy can
+prevent this. Windows' lock-screen cache does not provide arbitrary animated video
+playback on the sign-in screen. A video screen saver and a sign-in background are
+separate OS features.
 
 ## Build from source
 
-Requires macOS 14+, Apple command line developer tools, and a Swift compiler
-that supports macOS 14 SwiftUI. This build was made on Apple Silicon; build
-on an Intel Mac for an Intel binary. There are no package downloads.
+Mac (Xcode Command Line Tools, no package dependencies):
 
-```sh
-chmod +x build.command
-./build.command
-open ../OpenWall.app
-```
+    ./build.command /tmp/OpenWall.app
+    ./test.command
 
-The optional first argument is the output `.app` path. The build script signs
-locally with an ad-hoc signature. This is **not Apple notarization**; public
-distribution would require a Developer ID signature/notarization for a smooth
-Gatekeeper experience. The complete source can be freely inspected and built.
+The script builds the native app and its bundled OpenWall.saver. It targets the
+build machine's architecture. Intel source builds have not been runtime tested.
 
-## Scope and limitations
+Windows (.NET 10 SDK; cross-compilation is supported):
 
-- Desktop wallpapers only. No lock screen integration or screen saver extension.
-- No hosted wallpaper catalog, proprietary downloads, or music-player integration.
-- Full-screen/display-covering app detection, battery pause, and display-sleep
-  pause are included. CPU-load detection is not included.
-- Artwork fills a desktop-level, noninteractive window beneath desktop icons.
-  macOS Spaces/Stage Manager behavior can vary; those combinations need testing.
-- Disconnected display choices are retained and used when the display returns.
-- Video wallpapers can consume GPU/video-decoder resources. Pause or quit when needed.
-- Multi-monitor, future sleep/wake cycles, and login startup need verification
-  on the target configuration; see `VALIDATION.md` for what was actually tested.
+    ./Windows/build.ps1 -Runtime win-x64
+    # or -Runtime win-arm64
+    dotnet run --project Windows.Tests/OpenWall.Tests.csproj
 
-## Source map
+The Windows UI and renderer are local HTML/CSS/JavaScript in WebView2, hosted by
+WinForms. Requests to external HTTP hosts, popups, and browser permission requests
+are blocked. WebView2 Runtime may follow Microsoft's own update/network behavior.
+See THIRD-PARTY-NOTICES.txt in the Windows download for bundled runtime/SDK notices.
 
-- `Sources/Library.swift`: imports, persistence, preferences, display assignments.
-- `Sources/Engine.swift`: desktop windows, video loops, power detection, motion artwork.
-- `Sources/FullScreenDetector.swift`: privacy-preserving display coverage detection.
-- `Sources/Views.swift`: native library and menu bar interface.
-- `Sources/OpenWallApp.swift`: app scenes and lifecycle.
+## Local data
 
-OpenWall is not affiliated with Wallper or Sandimax. Videos you import keep
-their original licenses; the MIT license covers OpenWall's source and original artwork.
+- Mac: ~/Library/Application Support/org.openwall.desktop/
+- Windows: %LOCALAPPDATA%\OpenWall\
+
+Imported videos are copied into the local library. Removing an import deletes the
+OpenWall copy and thumbnail, preserving the original. Public downloads contain only
+OpenWall code and original art; personal media and paid wallpaper assets are excluded.
+
+Independent software, not affiliated with Wallper. No trial, account, payment, or
+license restrictions from another app are bypassed.

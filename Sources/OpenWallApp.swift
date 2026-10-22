@@ -3,7 +3,7 @@ import SwiftUI
 final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) { Library.shared.start() }
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
-    func applicationWillTerminate(_ notification: Notification) { Library.shared.engine?.closeAll() }
+    func applicationWillTerminate(_ notification: Notification) { Library.shared.shutdown() }
 }
 
 @main
