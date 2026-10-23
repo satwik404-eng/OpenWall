@@ -73,6 +73,41 @@ import CoreVideo
         let oldShuffle = try JSONDecoder().decode(LibraryState.self, from: JSONSerialization.data(withJSONObject: legacy))
         precondition(oldShuffle.playlist.count == Wallpaper.presets.count + 1 && oldShuffle.playlist.allSatisfy { $0.duration == .fiveMinutes })
         precondition(oldShuffle.playlistPlayback["legacy-display"]?.remainingSeconds == 300)
+        precondition(!migrated.liveLockScreen)
+        let poster = try await LockScreenRenderer.poster(for: Wallpaper.presets[0])
+        let otherPoster = try await LockScreenRenderer.poster(for: Wallpaper.presets[1])
+        let firstImage = NSImage(contentsOf: poster)!
+        precondition(firstImage.size.width == 1920 && firstImage.size.height == 1080)
+        let posterData = try Data(contentsOf: poster), otherPosterData = try Data(contentsOf: otherPoster)
+        precondition(posterData != otherPosterData)
+        let videoPoster = try await LockScreenRenderer.poster(for: item)
+        precondition(FileManager.default.fileExists(atPath: videoPoster.path))
+        let nativeMovie = testRoot.appendingPathComponent("native-test.mov")
+        try await NativeMovieEncoder.transcode(source, to: nativeMovie)
+        let nativeAsset = AVURLAsset(url: nativeMovie)
+        let nativeTracks = try await nativeAsset.loadTracks(withMediaType: .video)
+        let formats = try await nativeTracks[0].load(.formatDescriptions)
+        precondition(CMFormatDescriptionGetMediaSubType(formats[0]) == kCMVideoCodecType_HEVC)
+        let nativeAudio = try await nativeAsset.loadTracks(withMediaType: .audio)
+        precondition(nativeAudio.isEmpty)
+        let nativeFrame = try await AVAssetImageGenerator(asset: nativeAsset).image(at: .zero)
+        precondition(nativeFrame.image.width > 0)
+        let originalManifest: [String: Any] = ["categories": [["id": "apple"]], "assets": [["id": "apple-video"]], "version": 7]
+        let manifest = try NativeLockScreenStore.manifestByAdding(JSONSerialization.data(withJSONObject: originalManifest), id: "test-native-id", name: "Test wallpaper", movie: nativeMovie, poster: videoPoster)
+        let nativeManifest = try JSONSerialization.jsonObject(with: manifest) as! [String: Any]
+        precondition((nativeManifest["assets"] as! [[String: Any]]).contains { $0["id"] as? String == "apple-video" })
+        precondition(nativeManifest["version"] as? Int == 7)
+        let fixture: [String: Any] = ["SystemDefault": ["Type": "individual", "Desktop": ["Content": ["EncodedOptionValues": Data([1,2,3])]]], "Spaces": ["space-1": ["Default": ["Type": "individual"], "Keep": "metadata", "Displays": ["display-1": ["Type": "individual"]]]], "Unknown": "preserved"]
+        let nativeIndex = try NativeLockScreenStore.linkedIndex(PropertyListSerialization.data(fromPropertyList: fixture, format: .binary, options: 0), id: "test-native-id")
+        let nativePlist = try PropertyListSerialization.propertyList(from: nativeIndex, format: nil) as! [String: Any]
+        precondition(nativePlist["Unknown"] as? String == "preserved")
+        let spaces = nativePlist["Spaces"] as! [String: [String: Any]]
+        precondition(spaces["space-1"]?["Keep"] as? String == "metadata")
+        let linked = (nativePlist["SystemDefault"] as! [String: Any])["Linked"] as! [String: Any]
+        let choices = (linked["Content"] as! [String: Any])["Choices"] as! [[String: Any]]
+        let nativeConfig = try PropertyListSerialization.propertyList(from: choices[0]["Configuration"] as! Data, format: nil) as! [String: String]
+        precondition(nativeConfig["assetID"] == "test-native-id")
+        print("PASS: matching full-resolution preset/video thumbnails, real HEVC transcode/decode, native manifest preserves Apple entries, linked configuration preserves Space metadata")
         print("PASS: persisted media and settings round trip")
         print("PASS: old library migration preserves media/settings and enables fullscreen pause")
         var simulatedFullScreen = false

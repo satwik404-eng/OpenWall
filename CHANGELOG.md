@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.2.1
+
+- Experimental native live lock-screen sync on macOS 26+, using your current wallpaper and per-user aerial cache.
+- Matching high-resolution thumbnails for preparation, battery pause, older macOS, and processing failures.
+- Pause desktop playback while the session is locked.
+- Back up the original native wallpaper configuration and provide a restore action.
+- Reuse up to three prepared videos across launches and remove replaced OpenWall native-cache entries.
+- Include third-party attribution for the native wallpaper schema.
+
+Native locked-session playback still needs visual verification. Windows remains the unchanged 1.2.0 preview.
+
 ## 1.2.0
 
 - Click any wallpaper card to apply immediately, with no separate Set wallpaper step.

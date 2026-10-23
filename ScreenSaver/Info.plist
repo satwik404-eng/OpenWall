@@ -5,8 +5,8 @@
 <key>CFBundleIdentifier</key><string>org.openwall.screensaver</string>
 <key>CFBundleName</key><string>OpenWall</string>
 <key>CFBundlePackageType</key><string>BNDL</string>
-<key>CFBundleShortVersionString</key><string>1.2.0</string>
-<key>CFBundleVersion</key><string>3</string>
+<key>CFBundleShortVersionString</key><string>1.2.1</string>
+<key>CFBundleVersion</key><string>4</string>
 <key>NSPrincipalClass</key><string>OpenWallSaverView</string>
 <key>LSMinimumSystemVersion</key><string>14.0</string>
 </dict></plist>

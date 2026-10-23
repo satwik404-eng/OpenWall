@@ -165,6 +165,7 @@ struct PlaylistPlayback: Codable, Equatable {
         if let screen = NSScreen.screens.first(where: { $0.wallpaperID == screenID }) {
             engine?.apply(item, to: screen, paused: paused, speed: state.speed)
         }
+        syncLockScreen()
     }
 
     func remainingPlaylistTime(on screenID: String) -> TimeInterval? {
@@ -174,6 +175,7 @@ struct PlaylistPlayback: Codable, Equatable {
     }
 
     func shutdown() {
+        lockScreen.cancel()
         checkpointPlaylistClocks()
         stopMonitoring()
         playlistTimer?.invalidate()

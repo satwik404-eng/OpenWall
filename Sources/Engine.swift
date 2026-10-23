@@ -125,6 +125,7 @@ final class WallpaperEngine {
 struct MotionArtwork: View {
     let preset: String
     var animated = false
+    var fixedTime: Double? = nil
 
     static func colors(for preset: String) -> [Color] {
         switch preset {
@@ -144,7 +145,7 @@ struct MotionArtwork: View {
         TimelineView(.animation(minimumInterval: 1.0 / 24, paused: !animated)) { timeline in
             Canvas { context, size in
                 let colors = Self.colors(for: preset)
-                let time = animated ? timeline.date.timeIntervalSinceReferenceDate / 8 : 1.7
+                let time = fixedTime ?? (animated ? timeline.date.timeIntervalSinceReferenceDate / 8 : 1.7)
                 let rect = CGRect(origin: .zero, size: size)
                 context.fill(Path(rect), with: .linearGradient(Gradient(colors: [colors[0], colors[1].opacity(0.5), colors[0]]), startPoint: .zero, endPoint: CGPoint(x: size.width, y: size.height)))
                 for band in 0..<7 {

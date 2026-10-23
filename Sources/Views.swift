@@ -187,6 +187,13 @@ struct LibraryView: View {
                     .font(.caption).foregroundStyle(.secondary)
             }
             Section("Lock screen & screen saver") {
+                Toggle("Use live wallpaper on the lock screen", isOn: $library.state.liveLockScreen)
+                    .onChange(of: library.state.liveLockScreen) { library.settingsChanged() }
+                if library.lockScreen.busy { ProgressView().controlSize(.small) }
+                Text(library.lockScreen.status).font(.caption).foregroundStyle(.secondary).textSelection(.enabled)
+                Button("Restore previous system wallpaper") { library.restoreSystemWallpaper() }
+                Text("On macOS 26+, OpenWall adds your main display’s wallpaper to the native aerial cache for all displays. A thumbnail from that same wallpaper is used while processing, on battery, or if live integration fails. This experimental integration uses private macOS data; the original configuration is backed up in your local library.")
+                    .font(.caption).foregroundStyle(.secondary)
                 Button("Install OpenWall screen saver…") { library.installScreenSaver() }
                 Button("Open Screen Saver settings") { library.openScreenSaverSettings() }
                 Text("Choose OpenWall in macOS Screen Saver settings once. It reads the current wallpaper from your local OpenWall library, including imported videos. Set Require password to Immediately in Lock Screen settings for a protected screen saver. The sign-in prompt and the screen saver are separate OS views.")
@@ -200,7 +207,7 @@ struct LibraryView: View {
             Section("Local by design") {
                 Text("No account, analytics, subscription, or cloud connection. Imported videos are copied into OpenWall’s library; your original files stay where they are.")
                 Button("Show local library in Finder") { NSWorkspace.shared.open(Storage.root) }
-                Text("OpenWall 1.2 · MIT License\nIndependent software. Not affiliated with Wallper.").font(.caption).foregroundStyle(.secondary)
+                Text("OpenWall 1.2.1 · MIT License\nIndependent software. Not affiliated with Wallper.").font(.caption).foregroundStyle(.secondary)
             }
         }.formStyle(.grouped)
     }

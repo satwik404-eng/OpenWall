@@ -38,6 +38,29 @@ Full-screen/display-covering apps pause playback automatically. Battery and disp
 sleep pause are also available, with per-display assignment, menu-bar controls,
 playback speed, and optional login startup.
 
+### Mac live lock screen (experimental)
+
+Enable **Use live wallpaper on the lock screen** in Settings. On macOS 26+,
+OpenWall converts your main display's current wallpaper to a silent HEVC movie
+and adds it to the per-user native aerial cache. It configures the same native
+linked wallpaper for the desktop and idle/lock views on every display. Selecting
+another wallpaper updates this preparation automatically. Desktop playback pauses
+while the session is locked.
+
+A full-resolution thumbnail generated from that same wallpaper is used during
+preparation, on battery when battery pause is enabled, on older macOS versions,
+or if the live integration fails. Preparation can take time; the app reuses up to
+three prepared videos across launches. OpenWall's prior native cache entry is
+removed when another wallpaper replaces it. Original videos stay in your library.
+
+This integration uses undocumented macOS data and can break after OS updates.
+OpenWall backs up the original configuration under its local library's
+LockScreen/Backups folder. Disable the toggle or choose **Restore previous system
+wallpaper** to restore it while OpenWall still owns the current system wallpaper.
+If you changed it in another app, OpenWall leaves that newer selection untouched.
+Actual playback behind the locked sign-in prompt is not yet verified; see
+[VALIDATION.md](VALIDATION.md). It does not change the FileVault startup login screen.
+
 ### Mac screen saver
 
 In OpenWall Settings, choose **Install OpenWall screen saver**. Then select
@@ -51,9 +74,8 @@ animated gradient in the same palette. Battery pause shows a still image. The OS
 controls idle timing, display sleep, password protection, and the sign-in prompt.
 For password protection, choose Require password Immediately in Lock Screen settings.
 
-This is an OS screen saver. It does not replace Apple's aerial downloads or rewrite
-Apple's lock-screen cache, and it does not change the FileVault startup login screen.
-Changing the wallpaper while the saver is already running takes effect next start.
+The optional .saver is separate from native live lock-screen sync. Changing the
+wallpaper while this saver is already running takes effect next start.
 
 ## Install on Windows (preview)
 

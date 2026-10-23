@@ -1,8 +1,28 @@
 # Validation — 23 October 2026
 
+## Version 1.2.1 — Mac lock-screen preparation
+
+Built and installed in Applications on Apple Silicon, macOS 27.2. The bundled
+screen saver was updated too. All integration checks passed, including the
+existing real AVPlayer, full-screen pause, and playlist suite. New checks decode
+real HEVC output, verify it contains no audio, generate distinct 1920 × 1080
+preset thumbnails and video thumbnails, preserve Apple manifest entries, and
+preserve Space identities and unknown wallpaper-store metadata.
+
+The installed app prepared an imported wallpaper, registered a distinct native
+asset and matching poster, and wrote the linked Aerial provider configuration.
+The setting persisted across an app restart. An obsolete running test copy was
+stopped to prevent it overwriting newer settings. The original native index and
+manifest are backed up under the user's OpenWall library.
+
+Actual animation behind the locked sign-in prompt, restoration across macOS
+upgrades, physical battery/sleep changes, multiple displays, and long-term power
+use remain unverified. Native integration is explicitly experimental and uses
+private macOS data. HEVC availability and OS cache behavior vary by Mac.
+
 ## Version 1.2
 
-Mac app and bundled screen saver build successfully on Apple Silicon, targeting macOS 14+. The installed app is version 1.2.0 in Applications. All Mac integration checks pass with one connected display, including all seven timer durations, exact expiry, ordered wraparound, Forever, a real Foundation timer firing, immediate application, active-entry removal, reorder, pause-aware countdowns, persisted remaining time, and legacy shuffle migration. Nine unique motion wallpapers are included.
+Mac app and bundled screen saver build successfully on Apple Silicon, targeting macOS 14+. The 1.2.0 app was installed in Applications before the 1.2.1 update. All Mac integration checks pass with one connected display, including all seven timer durations, exact expiry, ordered wraparound, Forever, a real Foundation timer firing, immediate application, active-entry removal, reorder, pause-aware countdowns, persisted remaining time, and legacy shuffle migration. Nine unique motion wallpapers are included.
 
 The installed native UI was inspected with all nine motion cards, direct Apply actions, playlist controls, and screen-saver controls. OpenWall.saver installed successfully and was selected in System Settings on macOS 27.2. A separate native check verified start/stop layer rendering and that the installed bundle principal class loads. Actual locked-session transitions, password prompt timing, video playback inside the OS screen-saver host, multi-display screen savers, and long-term power use remain unverified.
 

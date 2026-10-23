@@ -8,8 +8,10 @@ xcrun swiftc -swift-version 5 -O -target "$arch_name-apple-macosx14.0" \
     -module-cache-path .build/module-cache \
     Sources/*.swift -o "$destination/Contents/MacOS/OpenWall" \
     -framework SwiftUI -framework AppKit -framework AVFoundation -framework AVKit \
-    -framework IOKit -framework ServiceManagement
+    -framework IOKit -framework ServiceManagement -framework VideoToolbox -framework CoreImage
 cp Resources/Info.plist "$destination/Contents/Info.plist"
+cp THIRD-PARTY-NOTICES.md "$destination/Contents/Resources/THIRD-PARTY-NOTICES.md"
+ditto ThirdParty "$destination/Contents/Resources/ThirdParty"
 saver="$destination/Contents/Resources/OpenWall.saver"
 mkdir -p "$saver/Contents/MacOS"
 xcrun swiftc -swift-version 5 -O -emit-library -module-name OpenWallSaver \

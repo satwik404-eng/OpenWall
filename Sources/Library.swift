@@ -28,6 +28,7 @@ struct LibraryState: Codable {
     var manualPause = false
     var pauseOnBattery = true
     var pauseInFullScreen = true
+    var liveLockScreen = false
     var playlist: [PlaylistEntry] = []
     var playlistPlayback: [String: PlaylistPlayback] = [:]
     var speed = 1.0
@@ -35,7 +36,7 @@ struct LibraryState: Codable {
     init() {}
 
     private enum CodingKeys: String, CodingKey {
-        case videos, assignments, manualPause, pauseOnBattery, pauseInFullScreen, playlist, playlistPlayback, speed
+        case videos, assignments, manualPause, pauseOnBattery, pauseInFullScreen, liveLockScreen, playlist, playlistPlayback, speed
     }
     private enum LegacyKeys: String, CodingKey { case shuffleMinutes }
 
@@ -46,6 +47,7 @@ struct LibraryState: Codable {
         manualPause = try values.decodeIfPresent(Bool.self, forKey: .manualPause) ?? false
         pauseOnBattery = try values.decodeIfPresent(Bool.self, forKey: .pauseOnBattery) ?? true
         pauseInFullScreen = try values.decodeIfPresent(Bool.self, forKey: .pauseInFullScreen) ?? true
+        liveLockScreen = try values.decodeIfPresent(Bool.self, forKey: .liveLockScreen) ?? false
         playlist = try values.decodeIfPresent([PlaylistEntry].self, forKey: .playlist) ?? []
         playlistPlayback = try values.decodeIfPresent([String: PlaylistPlayback].self, forKey: .playlistPlayback) ?? [:]
         speed = try values.decodeIfPresent(Double.self, forKey: .speed) ?? 1
@@ -145,6 +147,8 @@ final class Library {
     var importing = false
     var battery = false
     var sleeping = false
+    var sessionLocked = false
+    let lockScreen = LockScreenSync()
     private(set) var fullScreenActive = false
     var loginEnabled = false
     @ObservationIgnored var engine: WallpaperEngine?
@@ -165,10 +169,11 @@ final class Library {
             && (search.isEmpty || item.name.localizedCaseInsensitiveContains(search))
         }
     }
-    var paused: Bool { state.manualPause || sleeping || (state.pauseOnBattery && battery) || (state.pauseInFullScreen && fullScreenActive) }
+    var paused: Bool { state.manualPause || sleeping || sessionLocked || (state.pauseOnBattery && battery) || (state.pauseInFullScreen && fullScreenActive) }
     var status: String {
         if state.assignments.isEmpty { return "Ready when you are" }
         if state.manualPause { return "Paused by you" }
+        if sessionLocked { return "Session locked · desktop paused" }
         if sleeping { return "Display asleep" }
         if state.pauseInFullScreen && fullScreenActive { return "Paused in full screen" }
         if state.pauseOnBattery && battery { return "Paused on battery" }
@@ -192,7 +197,18 @@ final class Library {
         loginEnabled = SMAppService.mainApp.status == .enabled
         engine?.onError = { [weak self] message in self?.notice = message }
         restore()
+        syncLockScreen()
         let center = NSWorkspace.shared.notificationCenter
+        for (name, locked) in [("com.apple.screenIsLocked", true), ("com.apple.screenIsUnlocked", false)] {
+            tokens.append(DistributedNotificationCenter.default().addObserver(forName: Notification.Name(name), object: nil, queue: .main) { [weak self] _ in
+                Task { @MainActor in
+                    guard let self else { return }
+                    self.sessionLocked = locked
+                    self.updatePlayback()
+                    if locked && self.state.liveLockScreen && !(self.state.pauseOnBattery && self.battery) { self.lockScreen.refreshIfActive() }
+                }
+            })
+        }
         for (name, sleep) in [(NSWorkspace.willSleepNotification, true), (NSWorkspace.screensDidSleepNotification, true), (NSWorkspace.didWakeNotification, false), (NSWorkspace.screensDidWakeNotification, false)] {
             tokens.append(center.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
                 Task { @MainActor in self?.sleeping = sleep; self?.updatePlayback() }
@@ -214,6 +230,7 @@ final class Library {
                 guard self.battery != currentBattery else { return }
                 self.battery = currentBattery
                 self.updatePlayback()
+                self.syncLockScreen()
             }
         }
     }
@@ -237,6 +254,7 @@ final class Library {
         for token in tokens {
             NSWorkspace.shared.notificationCenter.removeObserver(token)
             NotificationCenter.default.removeObserver(token)
+            DistributedNotificationCenter.default().removeObserver(token)
         }
         tokens.removeAll()
         started = false
@@ -266,9 +284,11 @@ final class Library {
             engine?.apply(item, to: screen, paused: paused, speed: state.speed)
         }
         save()
+        syncLockScreen()
     }
 
     func stop() {
+        if state.liveLockScreen { lockScreen.restore() }
         checkpointPlaylistClocks()
         state.assignments.removeAll()
         state.playlistPlayback.removeAll()
@@ -280,7 +300,7 @@ final class Library {
     func togglePause() { state.manualPause.toggle(); updatePlayback(); save() }
     func updatePlayback() {
         // Stop probing when there is nothing to pause, or the display is asleep.
-        let shouldMonitor = state.pauseInFullScreen && !state.assignments.isEmpty && !sleeping
+        let shouldMonitor = state.pauseInFullScreen && !state.assignments.isEmpty && !sleeping && !sessionLocked
             && !state.manualPause && !(state.pauseOnBattery && battery)
         if shouldMonitor {
             fullScreenActive = fullScreenProbe()
@@ -302,7 +322,20 @@ final class Library {
             if playlistTimer != nil { checkpointPlaylistClocks() }
         } else if playlistTimer == nil { schedulePlaylistTimer() }
     }
-    func settingsChanged() { updatePlayback(); save() }
+    func settingsChanged() { updatePlayback(); save(); syncLockScreen() }
+
+    func syncLockScreen() {
+        let screen = NSScreen.screens.first { $0 == NSScreen.main } ?? NSScreen.screens.first
+        let id = screen.flatMap { state.assignments[$0.wallpaperID] } ?? state.assignments.sorted { $0.key < $1.key }.first?.value
+        guard let item = wallpapers.first(where: { $0.id == id }) else { lockScreen.cancel(); return }
+        lockScreen.request(item, enabled: state.liveLockScreen, onBattery: state.pauseOnBattery && battery, mainScreen: screen)
+    }
+
+    func restoreSystemWallpaper() {
+        state.liveLockScreen = false
+        save()
+        lockScreen.restore()
+    }
 
     func setLogin(_ enabled: Bool) {
         do {
