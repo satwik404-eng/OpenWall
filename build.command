@@ -9,15 +9,17 @@ xcrun swiftc -swift-version 5 -O -target "$arch_name-apple-macosx14.0" \
     Sources/*.swift -o "$destination/Contents/MacOS/OpenWall" \
     -framework SwiftUI -framework AppKit -framework AVFoundation -framework AVKit \
     -framework IOKit -framework ServiceManagement -framework VideoToolbox -framework CoreImage
+cp Shared/motion-catalog.json "$destination/Contents/Resources/motion-catalog.json"
 cp Resources/Info.plist "$destination/Contents/Info.plist"
 cp THIRD-PARTY-NOTICES.md "$destination/Contents/Resources/THIRD-PARTY-NOTICES.md"
 ditto ThirdParty "$destination/Contents/Resources/ThirdParty"
 saver="$destination/Contents/Resources/OpenWall.saver"
-mkdir -p "$saver/Contents/MacOS"
+mkdir -p "$saver/Contents/MacOS" "$saver/Contents/Resources"
+cp Shared/motion-catalog.json "$saver/Contents/Resources/motion-catalog.json"
 xcrun swiftc -swift-version 5 -O -emit-library -module-name OpenWallSaver \
     -target "$arch_name-apple-macosx14.0" -module-cache-path .build/module-cache \
-    ScreenSaver/OpenWallSaver.swift -o "$saver/Contents/MacOS/OpenWallSaver" \
-    -framework ScreenSaver -framework AppKit -framework AVFoundation -framework QuartzCore -framework IOKit
+    ScreenSaver/OpenWallSaver.swift Sources/MotionCatalog.swift Sources/MotionCGRenderer.swift -o "$saver/Contents/MacOS/OpenWallSaver" \
+    -framework SwiftUI -framework ScreenSaver -framework AppKit -framework AVFoundation -framework QuartzCore -framework IOKit
 cp ScreenSaver/Info.plist "$saver/Contents/Info.plist"
 xattr -dr com.apple.FinderInfo "$saver" 2>/dev/null || true
 codesign --force --sign - "$saver"

@@ -174,6 +174,35 @@ struct PlaylistPlayback: Codable, Equatable {
         return max(0, remaining - elapsed)
     }
 
+    func freezeDesktopForQuit() async {
+        lockScreen.cancel()
+        checkpointPlaylistClocks()
+        stopMonitoring()
+        playlistTimer?.invalidate()
+        playlistTimer = nil
+        save()
+        let screens = Dictionary(uniqueKeysWithValues: NSScreen.screens.map { ($0.wallpaperID, $0) })
+        let capture = Task { @MainActor in
+            await engine?.captureStillFrames(in: Storage.root.appendingPathComponent("StoppedFrames")) { _ in nil } ?? [:]
+        }
+        let deadline = Task { @MainActor in
+            do { try await Task.sleep(for: .seconds(5)); capture.cancel() } catch { }
+        }
+        let frames = await capture.value
+        deadline.cancel()
+        if FileManager.default.fileExists(atPath: StoppedWallpaperStore.index.path) {
+            do { try StoppedWallpaperStore.install(frames, screens: screens); return }
+            catch { notice = "The native still handoff failed: " + error.localizedDescription }
+        }
+        for (id, url) in frames {
+            guard let screen = screens[id] else { continue }
+            do {
+                try NSWorkspace.shared.setDesktopImageURL(url, for: screen,
+                    options: [.imageScaling: NSImageScaling.scaleProportionallyUpOrDown.rawValue, .allowClipping: true])
+            } catch { notice = "Could not leave a still wallpaper: " + error.localizedDescription }
+        }
+    }
+
     func shutdown() {
         lockScreen.cancel()
         checkpointPlaylistClocks()

@@ -1,4 +1,36 @@
-# Validation — 23 October 2026
+# Validation — 24 October 2026
+
+## Version 1.3.0
+
+Both Windows self-contained architectures and the native Mac app/screen saver build.
+The existing Mac integration suite passes, including actual AVPlayer, playlists,
+HEVC preparation and fullscreen/manual/battery pause checks. Native SwiftUI renders
+all 89 artworks to distinct images; all ten new styles have exactly eight palettes,
+all shapes animate and loop seamlessly. Pure JavaScript/Swift geometry comparison
+checks 11,490 coordinates across all eleven scenes with maximum error below 1e-12.
+The shared catalog and generated JavaScript are reproducibly checked.
+
+Windows regression checks cover ordinary/maximized/own/shell/hidden/cloaked windows,
+full-screen coverage, negative-coordinate monitors, persistent thumbnail cache,
+malformed/oversized writes, cleanup, and all previous playlist behaviours.
+A Chromium interface harness extracts real H.264 JPEG thumbnails sequentially,
+and leaves a fallback for invalid media. This harness substitutes the native bridge;
+it does not prove WebView2/Explorer compatibility on every physical Windows PC.
+
+Windows 11 ARM VM testing reached the library but controller startup failed. A
+subsequent corrected build was blocked before startup by the VM’s Windows
+Application Control policy (0x800711C7); its protections were left enabled.
+Therefore full 1.3.0 WebView2/Explorer runtime verification remains incomplete.
+
+Physical Intel/AMD Windows playback, games, multi-display pause behaviour and secure
+screen-saver execution still need testing on those machines. The installed Mac bundle/saver signatures pass. The native desktop store and
+NSWorkspace both report the stopped-frame JPEG after Quit, with no app process
+remaining. The selected OpenWall screen-saver bundle loads in an isolated native
+host and plays the current video (rate 1.5, time advancing, no AVPlayer error);
+layout, frame callback and stop succeed. The user also confirmed it is working.
+Actual password-prompt/secure idle transitions remain separate, unverified tests.
+Earlier experimental Mac sign-in animation limits remain below.
+
 
 ## Version 1.2.1 — Mac lock-screen preparation
 

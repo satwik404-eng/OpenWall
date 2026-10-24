@@ -91,12 +91,41 @@ struct NativeLockScreenStore {
         return nil
     }
 
+    static func keepingScreenSaver(_ data: Data, module: URL) throws -> Data {
+        guard var root = try PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any] else {
+            throw LockScreenFailure.unavailable("The screen-saver configuration could not be read.")
+        }
+        let configuration = try PropertyListSerialization.data(fromPropertyList: ["module": ["relative": module.absoluteString]], format: .binary, options: 0)
+        let idle: [String: Any] = ["LastSet": Date(), "LastUse": Date(), "Content": [
+            "Choices": [["Provider": "com.apple.wallpaper.choice.screen-saver", "Files": [], "Configuration": configuration]],
+            "Shuffle": "$null", "EncodedOptionValues": "$null"
+        ]]
+        func replace(_ original: [String: Any]) -> [String: Any] {
+            var container = original
+            if let linked = container.removeValue(forKey: "Linked") { container["Desktop"] = linked }
+            container["Idle"] = idle
+            container["Type"] = container["Desktop"] == nil ? "idle" : "individual"
+            return container
+        }
+        for key in ["AllSpacesAndDisplays", "SystemDefault"] { root[key] = replace(root[key] as? [String: Any] ?? [:]) }
+        if let displays = root["Displays"] as? [String: [String: Any]] { root["Displays"] = displays.mapValues(replace) }
+        if var spaces = root["Spaces"] as? [String: [String: Any]] {
+            for key in Array(spaces.keys) {
+                let oldDefault = spaces[key]?["Default"] as? [String: Any] ?? [:]
+                spaces[key]?["Default"] = replace(oldDefault)
+                if let displays = spaces[key]?["Displays"] as? [String: [String: Any]] { spaces[key]?["Displays"] = displays.mapValues(replace) }
+            }
+            root["Spaces"] = spaces
+        }
+        return try PropertyListSerialization.data(fromPropertyList: root, format: .binary, options: 0)
+    }
+
     var isActive: Bool {
         guard let id = try? String(contentsOf: record, encoding: .utf8),
               let data = try? Data(contentsOf: index),
               let plist = try? PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any],
               let container = plist["AllSpacesAndDisplays"] as? [String: Any],
-              let linked = container["Linked"] as? [String: Any], let content = linked["Content"] as? [String: Any],
+              let linked = (container["Linked"] ?? container["Desktop"]) as? [String: Any], let content = linked["Content"] as? [String: Any],
               let choice = (content["Choices"] as? [[String: Any]])?.first,
               choice["Provider"] as? String == "com.apple.wallpaper.choice.aerials",
               let config = choice["Configuration"] as? Data,
@@ -120,7 +149,9 @@ struct NativeLockScreenStore {
         try Task.checkCancellation()
         Self.refreshAgent()
         try await Task.sleep(for: .milliseconds(300))
-        let newIndex = try Self.linkedIndex(Data(contentsOf: index), id: media.id)
+        let linked = try Self.linkedIndex(Data(contentsOf: index), id: media.id)
+        let saver = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Screen Savers/OpenWall.saver")
+        let newIndex = try fm.fileExists(atPath: saver.path) ? Self.keepingScreenSaver(linked, module: saver) : linked
         // After this point finish the small commit even if a later selection
         // cancels preparation. A cancelled operation must not leave half a store.
         try manifestData.write(to: manifest, options: .atomic)
@@ -140,7 +171,7 @@ struct NativeLockScreenStore {
         let ownStill = NSScreen.screens.contains { screen in
             NSWorkspace.shared.desktopImageURL(for: screen)?.path.hasPrefix(backupRoot.deletingLastPathComponent().path + "/") == true
         }
-        guard isActive || ownStill else { throw LockScreenFailure.unavailable("The system wallpaper changed outside OpenWall. It was left untouched; your original backup remains in the local library.") }
+        guard isActive || ownStill || StoppedWallpaperStore.ownsDesktop else { throw LockScreenFailure.unavailable("The system wallpaper changed outside OpenWall. It was left untouched; your original backup remains in the local library.") }
         Self.refreshAgent(); try await Task.sleep(for: .milliseconds(300))
         try Data(contentsOf: backupRoot.appendingPathComponent("original-index.plist")).write(to: index, options: .atomic)
         // Remove only OpenWall metadata, preserving Apple and other app entries.

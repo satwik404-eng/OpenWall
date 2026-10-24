@@ -10,7 +10,9 @@ final class OpenWallSaverView: ScreenSaverView {
     private var player: AVQueuePlayer?
     private var looper: AVPlayerLooper?
     private var videoLayer: AVPlayerLayer?
-    private var motionLayer: CAGradientLayer?
+    private var motionPreset: String?
+    private var motionPaused = false
+    override var isFlipped: Bool { true }
 
     override init?(frame: NSRect, isPreview: Bool) {
         super.init(frame: frame, isPreview: isPreview)
@@ -59,39 +61,30 @@ final class OpenWallSaverView: ScreenSaverView {
                 return
             }
         }
-        let palettes: [String: [UInt32]] = [
-            "aurora": [0x041216, 0x0d8563, 0x80e899], "dusk": [0x1a0624, 0xf75433, 0xffb25e],
-            "ocean": [0x030a26, 0x0f4cbd, 0x38d4eb], "ember": [0x1f0405, 0xd6210b, 0xff9429],
-            "amethyst": [0x0e0424, 0x6b29c4, 0xcf8fff], "glacier": [0x051a2b, 0x308fad, 0xc9f5fa],
-            "solar": [0x2b0d05, 0xe06614, 0xffdb5c], "midnight": [0x06080e, 0x2e3857, 0x91a8d4],
-            "rose": [0x1f0617, 0xb04073, 0xffadbf]]
-        let colors = (palettes[id] ?? palettes["aurora"]!).map { n in
-            NSColor(srgbRed: CGFloat((n >> 16) & 255) / 255, green: CGFloat((n >> 8) & 255) / 255, blue: CGFloat(n & 255) / 255, alpha: 1).cgColor
-        }
-        let gradient = CAGradientLayer()
-        gradient.frame = bounds.insetBy(dx: -bounds.width / 2, dy: -bounds.height / 2)
-        gradient.colors = colors + [colors[0]]; gradient.locations = [0, 0.35, 0.7, 1]
-        gradient.startPoint = CGPoint(x: 0.05, y: 0.1); gradient.endPoint = CGPoint(x: 0.9, y: 0.85)
-        layer?.addSublayer(gradient); motionLayer = gradient
-        if !pauseOnBattery {
-            let drift = CABasicAnimation(keyPath: "transform.rotation.z")
-            drift.fromValue = -0.3; drift.toValue = 0.5; drift.duration = 24
-            drift.autoreverses = true; drift.repeatCount = .infinity
-            drift.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
-            gradient.add(drift, forKey: "drift")
-        }
+        motionPreset = id
+        motionPaused = pauseOnBattery
+        animationTimeInterval = pauseOnBattery ? 1 : 1.0 / 24
+        needsDisplay = true
     }
+    override func animateOneFrame() {
+        if motionPreset != nil && !motionPaused { needsDisplay = true }
+    }
+    override func draw(_ dirtyRect: NSRect) {
+        guard let preset = motionPreset, let context = NSGraphicsContext.current?.cgContext else { return }
+        MotionCGRenderer.draw(preset, time: motionPaused ? 1.7 : Date.timeIntervalSinceReferenceDate / 8, size: bounds.size, in: context)
+    }
+
     override func layout() {
         super.layout()
         CATransaction.begin(); CATransaction.setDisableActions(true)
         videoLayer?.frame = bounds
-        motionLayer?.frame = bounds.insetBy(dx: -bounds.width / 2, dy: -bounds.height / 2)
+        needsDisplay = true
         CATransaction.commit()
     }
     private func clear() {
         player?.pause(); looper?.disableLooping()
-        videoLayer?.removeFromSuperlayer(); motionLayer?.removeFromSuperlayer()
-        player = nil; looper = nil; videoLayer = nil; motionLayer = nil
+        videoLayer?.removeFromSuperlayer()
+        player = nil; looper = nil; videoLayer = nil; motionPreset = nil
     }
     override func stopAnimation() { clear(); super.stopAnimation() }
 }

@@ -8,13 +8,15 @@
     <Nullable>enable</Nullable>
     <AssemblyName>OpenWall</AssemblyName>
     <RootNamespace>OpenWall.Windows</RootNamespace>
-    <Version>1.2.0</Version>
+    <Version>1.3.0</Version>
     <ApplicationIcon>Assets/OpenWall.ico</ApplicationIcon>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <PublishTrimmed>false</PublishTrimmed>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.4258.31" />
+    <Content Include="../Shared/motion-catalog.json" Link="Assets/motion-catalog.json" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="../Shared/motion-catalog.js" Link="Assets/motion-catalog.js" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="Assets/**" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
   <Target Name="ExcludeUnusedWebViewWpf" BeforeTargets="ResolveAssemblyReferences">

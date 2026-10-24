@@ -8,7 +8,11 @@ internal static class WebSurface {
         await view.EnsureCoreWebView2Async(environment);
         var core = view.CoreWebView2;
         core.SetVirtualHostNameToFolderMapping("app.openwall.local", Path.Combine(AppContext.BaseDirectory, "Assets"), CoreWebView2HostResourceAccessKind.DenyCors);
-        core.SetVirtualHostNameToFolderMapping("media.openwall.local", media, CoreWebView2HostResourceAccessKind.DenyCors);
+        // The local library draws video frames into a canvas for cached JPEG previews.
+        core.SetVirtualHostNameToFolderMapping("media.openwall.local", media, CoreWebView2HostResourceAccessKind.Allow);
+        var thumbnails = Path.Combine(Path.GetDirectoryName(media)!, "Thumbnails");
+        Directory.CreateDirectory(thumbnails);
+        core.SetVirtualHostNameToFolderMapping("thumbnails.openwall.local", thumbnails, CoreWebView2HostResourceAccessKind.DenyCors);
         core.Settings.AreDefaultContextMenusEnabled = false;
         core.Settings.AreDevToolsEnabled = false;
         core.Settings.IsStatusBarEnabled = false;
@@ -23,7 +27,7 @@ internal static class WebSurface {
         core.AddWebResourceRequestedFilter("*", CoreWebView2WebResourceContext.All);
         core.WebResourceRequested += (_, e) => {
             if (Uri.TryCreate(e.Request.Uri, UriKind.Absolute, out var uri)
-                && uri.Scheme is "http" or "https" && uri.Host is not ("app.openwall.local" or "media.openwall.local"))
+                && uri.Scheme is "http" or "https" && uri.Host is not ("app.openwall.local" or "media.openwall.local" or "thumbnails.openwall.local"))
                 e.Response = environment.CreateWebResourceResponse(new MemoryStream(), 403, "External requests are disabled", "Content-Type: text/plain");
         };
     }

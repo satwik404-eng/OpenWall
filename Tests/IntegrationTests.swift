@@ -107,6 +107,31 @@ import CoreVideo
         let choices = (linked["Content"] as! [String: Any])["Choices"] as! [[String: Any]]
         let nativeConfig = try PropertyListSerialization.propertyList(from: choices[0]["Configuration"] as! Data, format: nil) as! [String: String]
         precondition(nativeConfig["assetID"] == "test-native-id")
+        let saverURL = URL(fileURLWithPath: "/tmp/OpenWall.saver")
+        let saverIndex = try NativeLockScreenStore.keepingScreenSaver(nativeIndex, module: saverURL)
+        let saverPlist = try PropertyListSerialization.propertyList(from: saverIndex, format: nil) as! [String: Any]
+        let saverContainer = saverPlist["AllSpacesAndDisplays"] as! [String: Any]
+        precondition(saverContainer["Type"] as? String == "individual" && saverContainer["Desktop"] != nil)
+        let saverIdle = saverContainer["Idle"] as! [String: Any]
+        let saverChoice = ((saverIdle["Content"] as! [String: Any])["Choices"] as! [[String: Any]])[0]
+        precondition(saverChoice["Provider"] as? String == "com.apple.wallpaper.choice.screen-saver")
+        let saverConfig = try PropertyListSerialization.propertyList(from: saverChoice["Configuration"] as! Data, format: nil) as! [String: Any]
+        precondition((saverConfig["module"] as! [String: String])["relative"] == saverURL.absoluteString)
+        print("PASS: live wallpaper sync keeps the installed OpenWall screen saver selected instead of replacing it with an Apple aerial")
+        let stillIndex = try StoppedWallpaperStore.replacingDesktop(nativeIndex, frames: ["display-1": videoPoster], defaultFrame: videoPoster)
+        let stillPlist = try PropertyListSerialization.propertyList(from: stillIndex, format: nil) as! [String: Any]
+        let stillContainer = stillPlist["AllSpacesAndDisplays"] as! [String: Any]
+        precondition(stillContainer["Type"] as? String == "individual" && stillContainer["Linked"] == nil)
+        let stillDesktop = stillContainer["Desktop"] as! [String: Any]
+        let stillChoice = ((stillDesktop["Content"] as! [String: Any])["Choices"] as! [[String: Any]])[0]
+        let stillConfig = try PropertyListSerialization.propertyList(from: stillChoice["Configuration"] as! Data, format: nil) as! [String: Any]
+        precondition((stillConfig["url"] as! [String: String])["relative"] == videoPoster.absoluteString)
+        let retainedIdle = stillContainer["Idle"] as! [String: Any]
+        let retainedChoice = ((retainedIdle["Content"] as! [String: Any])["Choices"] as! [[String: Any]])[0]
+        precondition(retainedChoice["Provider"] as? String == "com.apple.wallpaper.choice.aerials")
+        let retainedSpaces = stillPlist["Spaces"] as! [String: [String: Any]]
+        precondition(retainedSpaces["space-1"]?["Keep"] as? String == "metadata" && stillPlist["Unknown"] as? String == "preserved")
+        print("PASS: quit-to-still splits native desktop from aerial Idle, preserving lock-screen choice, display/Space identities and metadata")
         print("PASS: matching full-resolution preset/video thumbnails, real HEVC transcode/decode, native manifest preserves Apple entries, linked configuration preserves Space metadata")
         print("PASS: persisted media and settings round trip")
         print("PASS: old library migration preserves media/settings and enables fullscreen pause")
@@ -162,7 +187,7 @@ import CoreVideo
         library.target = library.displays[0].id
         let screenID = library.target
         precondition(WallpaperDuration.allCases.map(\.rawValue) == [86400, 21600, 10800, 3600, 1800, 300, 0])
-        precondition(Wallpaper.presets.count == 9 && Set(Wallpaper.presets.map(\.id)).count == 9)
+        precondition(Wallpaper.presets.count == 89 && Set(Wallpaper.presets.map(\.id)).count == 89)
         Wallpaper.presets.prefix(3).forEach { library.addToPlaylist($0) }
         library.addToPlaylist(Wallpaper.presets[0])
         precondition(library.state.playlist.count == 3)
@@ -244,6 +269,20 @@ import CoreVideo
         library.apply(Wallpaper.presets[0]); library.stopPlaylist()
         precondition(library.state.playlistPlayback[screenID] == nil && library.state.assignments[screenID] == "aurora")
         print("PASS: manual wallpaper outside playlist stops only targeted rotation; stop playlist keeps wallpaper; disconnected display state is retained")
+        let freezeRoot = testRoot.appendingPathComponent("StoppedFrames")
+        library.apply(item)
+        try await Task.sleep(for: .milliseconds(240))
+        let videoFrames = await library.engine!.captureStillFrames(in: freezeRoot) { _ in nil }
+        precondition(videoFrames.count == 1 && NSImage(contentsOf: videoFrames[screenID]!) != nil)
+        precondition(library.engine!.activePlayer?.rate == 0)
+        library.apply(Wallpaper.presets[0])
+        let motionFrames = await library.engine!.captureStillFrames(in: freezeRoot) { videoFrames[$0] }
+        precondition(motionFrames.count == 1 && NSImage(contentsOf: motionFrames[screenID]!) != nil)
+        precondition(motionFrames[screenID] != videoFrames[screenID])
+        _ = await library.engine!.captureStillFrames(in: freezeRoot) { motionFrames[$0] }
+        let stoppedFiles = try FileManager.default.contentsOfDirectory(atPath: freezeRoot.path)
+        precondition(stoppedFiles.count == 2)
+        print("PASS: quit captures the playing video's current frame and motion artwork, pauses decoding, and retains only two stills per display")
         library.stop()
         precondition(library.engine!.count == 0 && library.state.assignments.isEmpty)
         library.remove(item)

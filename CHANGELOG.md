@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.3.0 — Known bug fixes and expanded motion collection
+
+- Add 80 motion wallpapers: ten distinct styles with eight palettes each; retain the original nine (89 total).
+- Share original wave geometry, colours, vector scenes and motion parameters across macOS and Windows.
+- Use matching artwork in library previews, desktop playback and screen savers.
+- Remove Windows Preview labeling; publish standard Windows x64 and ARM64 downloads.
+- Generate and retain real JPEG thumbnails for new and existing Windows video imports, with bounded sequential decoding and cache cleanup.
+- Fix Windows fullscreen pause falsely triggered by desktop/own/normal maximized windows; compare the visible client area instead of outer resize borders.
+- Preserve the installed OpenWall screen saver when syncing native wallpaper; render saver motion with native Core Graphics.
+- Leave the current Mac wallpaper as a still frame on Quit, with two bounded snapshot files per display.
+- Add a clearly named Windows launcher and first-run/update instructions to the ZIP.
+
 ## 1.2.1
 
 - Experimental native live lock-screen sync on macOS 26+, using your current wallpaper and per-user aerial cache.

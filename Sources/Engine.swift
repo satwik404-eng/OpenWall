@@ -97,6 +97,29 @@ final class WallpaperSession {
     }
 
     func close() { observation = nil; player?.pause(); looper?.disableLooping(); window.close() }
+
+    func freezeFrame() async throws -> CGImage {
+        if let player, let asset = player.currentItem?.asset {
+            let time = player.currentTime()
+            player.pause()
+            let generator = AVAssetImageGenerator(asset: asset)
+            generator.appliesPreferredTrackTransform = true
+            generator.maximumSize = CGSize(width: 2560, height: 2560)
+            generator.requestedTimeToleranceBefore = .zero
+            generator.requestedTimeToleranceAfter = .zero
+            return try await withTaskCancellationHandler {
+                try await generator.image(at: time.isNumeric ? time : .zero).image
+            } onCancel: { generator.cancelAllCGImageGeneration() }
+        }
+        let time = playbackPaused ? 1.7 : Date.timeIntervalSinceReferenceDate / 8
+        if let host = window.contentView as? NSHostingView<MotionArtwork> {
+            host.rootView = MotionArtwork(preset: item.id, fixedTime: time)
+        }
+        let size = window.frame.size
+        let scale = min(1, 2560 / max(size.width, size.height))
+        return try LockScreenRenderer.motionFrame(item.id, time: time,
+            width: max(1, Int(size.width * scale)), height: max(1, Int(size.height * scale)))
+    }
 }
 
 @MainActor
@@ -120,58 +143,28 @@ final class WallpaperEngine {
     var allIgnoreMouse: Bool { sessions.values.allSatisfy { $0.window.ignoresMouseEvents && !$0.window.canBecomeKey } }
     var allBelowIcons: Bool { sessions.values.allSatisfy { $0.window.level.rawValue < Int(CGWindowLevelForKey(.desktopIconWindow)) } }
     var activePlayer: AVQueuePlayer? { sessions.values.compactMap(\.player).first }
-}
 
-struct MotionArtwork: View {
-    let preset: String
-    var animated = false
-    var fixedTime: Double? = nil
-
-    static func colors(for preset: String) -> [Color] {
-        switch preset {
-        case "ember": return [Color(red: 0.12, green: 0.015, blue: 0.02), Color(red: 0.84, green: 0.13, blue: 0.045), Color(red: 1, green: 0.58, blue: 0.16)]
-        case "amethyst": return [Color(red: 0.055, green: 0.015, blue: 0.14), Color(red: 0.42, green: 0.16, blue: 0.77), Color(red: 0.81, green: 0.56, blue: 1)]
-        case "glacier": return [Color(red: 0.02, green: 0.10, blue: 0.17), Color(red: 0.19, green: 0.56, blue: 0.68), Color(red: 0.79, green: 0.96, blue: 0.98)]
-        case "solar": return [Color(red: 0.17, green: 0.05, blue: 0.02), Color(red: 0.88, green: 0.40, blue: 0.08), Color(red: 1, green: 0.86, blue: 0.36)]
-        case "midnight": return [Color(red: 0.025, green: 0.03, blue: 0.055), Color(red: 0.18, green: 0.22, blue: 0.34), Color(red: 0.57, green: 0.66, blue: 0.83)]
-        case "rose": return [Color(red: 0.12, green: 0.025, blue: 0.09), Color(red: 0.69, green: 0.25, blue: 0.45), Color(red: 1, green: 0.68, blue: 0.75)]
-        case "dusk": return [Color(red: 0.10, green: 0.025, blue: 0.14), Color(red: 0.97, green: 0.33, blue: 0.20), Color(red: 1, green: 0.70, blue: 0.37)]
-        case "ocean": return [Color(red: 0.012, green: 0.04, blue: 0.15), Color(red: 0.06, green: 0.30, blue: 0.74), Color(red: 0.22, green: 0.83, blue: 0.92)]
-        default: return [Color(red: 0.015, green: 0.07, blue: 0.085), Color(red: 0.05, green: 0.52, blue: 0.39), Color(red: 0.50, green: 0.91, blue: 0.60)]
+    // Two alternating files per display prevent macOS reusing a cached URL.
+    // These are rendered from our own media, without screen-recording access.
+    func captureStillFrames(in root: URL, currentImage: (String) -> URL?) async -> [String: URL] {
+        try? FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        var result: [String: URL] = [:]
+        for (id, session) in sessions {
+            guard !Task.isCancelled else { break }
+            let safeID = String(id.unicodeScalars.filter { CharacterSet.alphanumerics.contains($0) })
+            let first = root.appendingPathComponent(safeID + "-0.jpg")
+            let second = root.appendingPathComponent(safeID + "-1.jpg")
+            let current = currentImage(id)
+            let firstDate = (try? first.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
+            let secondDate = (try? second.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
+            let next = current == first ? second : current == second ? first : firstDate > secondDate ? second : first
+            do {
+                let image = try await session.freezeFrame()
+                guard let jpeg = NSBitmapImageRep(cgImage: image).representation(using: .jpeg, properties: [.compressionFactor: 0.9]) else { continue }
+                try jpeg.write(to: next, options: .atomic)
+                result[id] = next
+            } catch { onError?("Could not save the stopped wallpaper: " + error.localizedDescription) }
         }
-    }
-
-    var body: some View {
-        TimelineView(.animation(minimumInterval: 1.0 / 24, paused: !animated)) { timeline in
-            Canvas { context, size in
-                let colors = Self.colors(for: preset)
-                let time = fixedTime ?? (animated ? timeline.date.timeIntervalSinceReferenceDate / 8 : 1.7)
-                let rect = CGRect(origin: .zero, size: size)
-                context.fill(Path(rect), with: .linearGradient(Gradient(colors: [colors[0], colors[1].opacity(0.5), colors[0]]), startPoint: .zero, endPoint: CGPoint(x: size.width, y: size.height)))
-                for band in 0..<7 {
-                    let n = Double(band)
-                    var path = Path()
-                    path.move(to: CGPoint(x: -size.width * 0.1, y: size.height * 1.2))
-                    for step in 0...72 {
-                        let x = Double(step) / 72 * size.width * 1.2 - size.width * 0.1
-                        let wave = sin(x / size.width * 3.8 + time + n * 0.36) * size.height * 0.15
-                        let y = size.height * (0.27 + n * 0.073) + wave
-                        path.addLine(to: CGPoint(x: x, y: y))
-                    }
-                    path.addLine(to: CGPoint(x: size.width * 1.1, y: size.height * 1.2))
-                    path.closeSubpath()
-                    context.fill(path, with: .linearGradient(Gradient(colors: [colors[2].opacity(0.30), colors[1].opacity(0.13), colors[0].opacity(0.7)]), startPoint: CGPoint(x: size.width * 0.3, y: size.height * 0.25), endPoint: CGPoint(x: size.width * 0.6, y: size.height)))
-                }
-                // A deterministic star field; no files or external artwork required.
-                for i in 0..<65 {
-                    let x = Double((i * 137 + 17) % 997) / 997 * size.width
-                    let y = Double((i * 79 + 43) % 631) / 631 * size.height * 0.57
-                    let radius = i % 4 == 0 ? 1.25 : 0.65
-                    context.fill(Path(ellipseIn: CGRect(x: x, y: y, width: radius * 2, height: radius * 2)), with: .color(.white.opacity(i % 3 == 0 ? 0.5 : 0.22)))
-                }
-            }
-        }
-        .clipped()
-        .accessibilityLabel("\(preset) animated wallpaper")
+        return result
     }
 }

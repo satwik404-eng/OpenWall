@@ -9,17 +9,7 @@ struct Wallpaper: Codable, Identifiable, Equatable {
     let name: String
     let filename: String?
     var isVideo: Bool { filename != nil }
-    static let presets = [
-        Wallpaper(id: "aurora", name: "Northern lights", filename: nil),
-        Wallpaper(id: "dusk", name: "Afterglow", filename: nil),
-        Wallpaper(id: "ocean", name: "Deep current", filename: nil),
-        Wallpaper(id: "ember", name: "Ember glow", filename: nil),
-        Wallpaper(id: "amethyst", name: "Amethyst drift", filename: nil),
-        Wallpaper(id: "glacier", name: "Glacier light", filename: nil),
-        Wallpaper(id: "solar", name: "Solar tide", filename: nil),
-        Wallpaper(id: "midnight", name: "Midnight silk", filename: nil),
-        Wallpaper(id: "rose", name: "Rosewater", filename: nil)
-    ]
+    static let presets = MotionCatalog.shared.items.map { Wallpaper(id: $0.id, name: $0.name, filename: nil) }
 }
 
 struct LibraryState: Codable {

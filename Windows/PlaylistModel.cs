@@ -21,7 +21,13 @@ public class LibraryState {
 
 public class PlaylistModel {
     public static readonly int[] Durations = [86400, 21600, 10800, 3600, 1800, 300, 0];
-    public static readonly Wallpaper[] Presets = [new("aurora", "Northern lights"), new("dusk", "Afterglow"), new("ocean", "Deep current"), new("ember", "Ember glow"), new("amethyst", "Amethyst drift"), new("glacier", "Glacier light"), new("solar", "Solar tide"), new("midnight", "Midnight silk"), new("rose", "Rosewater")];
+    public static readonly Wallpaper[] Presets = LoadPresets();
+    private static Wallpaper[] LoadPresets() {
+        using var catalog = JsonDocument.Parse(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Assets", "motion-catalog.json")));
+        return catalog.RootElement.GetProperty("items").EnumerateArray().Select(item =>
+            new Wallpaper(item.GetProperty("id").GetString()!, item.GetProperty("name").GetString()!)).ToArray();
+    }
+
     public static readonly JsonSerializerOptions Json = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase, WriteIndented = true };
     public LibraryState State { get; private set; } = new();
     public IEnumerable<Wallpaper> Wallpapers => Presets.Concat(State.Videos);

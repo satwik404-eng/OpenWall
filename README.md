@@ -1,6 +1,6 @@
 # OpenWall
 
-Free, open-source live wallpapers for macOS, with a Windows preview. MIT licensed.
+Free, open-source live wallpapers for macOS, and Windows. MIT licensed.
 No account, subscription, analytics, paid catalog, or cloud library.
 
 [Download the latest release](https://github.com/satwik404-eng/OpenWall/releases/latest)
@@ -10,9 +10,16 @@ No account, subscription, analytics, paid catalog, or cloud library.
 Click any wallpaper card to apply it immediately to the selected displays.
 There is no second **Set wallpaper** step. **Add to playlist** is a separate action.
 
-The Motion collection includes nine original animations made from code:
+The Motion collection includes **89 original wallpapers made from code**. The original nine remain:
 Northern lights, Afterglow, Deep current, Ember glow, Amethyst drift, Glacier light,
 Solar tide, Midnight silk, and Rosewater. You can also import your own video files.
+
+Version 1.3 adds **10 distinct motion styles × 8 palettes = 80 new wallpapers**:
+Silk ribbons, Orbital rings, Luminous bloom, Contour flow, Prism drift, Neon rain,
+Dune horizon, Constellation, Vortex tunnel, and Petal dance. Each comes in Jade,
+Arctic, Violet, Coral, Gold, Midnight Silk, Light Blue, and Teal Green.
+Both platforms consume the same vector catalog, so wave geometry, palettes,
+and motion parameters match. Library cards and screen savers use the same artwork.
 
 ## Playlist
 
@@ -23,6 +30,14 @@ wallpaper. Clicking a playlist member starts it immediately with its full durati
 clicking a wallpaper outside the playlist stops rotation on those displays.
 
 Timers freeze while desktop playback is paused and resume with their time remaining.
+
+On Mac, **Quit OpenWall** leaves a still frame of the current video or motion
+wallpaper on each display. Reopening resumes live playback. Still frames come from
+OpenWall’s own media; no screen-recording permission is used. At most two alternating
+JPEG files are retained per display under StoppedFrames. On newer macOS versions,
+the desktop choice is separated from the idle screen-saver choice in the native
+wallpaper store, so a linked aerial cannot override the stopped image. A backup is
+kept there; the live lock-screen feature remains experimental.
 Normal quit saves that remaining time. Stopping the playlist leaves the current
 wallpaper visible; Stop removes the desktop wallpapers. Existing shuffle settings
 on Mac migrate to an ordered playlist.
@@ -70,26 +85,42 @@ In OpenWall Settings, choose **Install OpenWall screen saver**. Then select
 The .saver reads the latest wallpaper assignments and videos from OpenWall's own
 local library cache, so future wallpaper clicks are reflected the next time the
 screen saver starts. Imported videos loop; the motion collection uses a lightweight
-animated gradient in the same palette. Battery pause shows a still image. The OS
+animated vector artwork as desktop playback. Battery pause shows a still image. The OS
 controls idle timing, display sleep, password protection, and the sign-in prompt.
 For password protection, choose Require password Immediately in Lock Screen settings.
+
+When OpenWall.saver is installed, native wallpaper sync preserves it as the idle
+screen saver rather than replacing it with the system aerial. The saver uses native
+Core Graphics for the motion collection and AVFoundation for videos.
 
 The optional .saver is separate from native live lock-screen sync. Changing the
 wallpaper while this saver is already running takes effect next start.
 
-## Install on Windows (preview)
+## Install on Windows
 
-Download OpenWall-Windows-x64-preview.zip for Intel/AMD PCs, or
-OpenWall-Windows-arm64-preview.zip for ARM PCs. Extract the entire ZIP and run
-OpenWall.exe. Keep all extracted files together. Requires **Windows 10 version
+Download OpenWall-Windows-x64.zip for Intel/AMD PCs, or
+OpenWall-Windows-arm64.zip for ARM PCs. Extract the entire ZIP and double-click
+**Start OpenWall.cmd** launcher, or open the inner OpenWall folder and run
+**OpenWall.exe** (Type: Application). Keep all extracted files together. Requires **Windows 10 version
 2004+ or Windows 11** and the [Microsoft Edge WebView2 Evergreen Runtime](https://developer.microsoft.com/microsoft-edge/webview2/).
 .NET is bundled; no separate .NET installation or administrator access is needed.
 
 The Windows app includes the motion collection, local video import, direct click to
 apply, per-display playlists, battery/full-screen/session-lock pause, and tray controls.
+Imported videos receive cached JPEG previews, including videos already in your
+library. Previews decode sequentially without playing audio and release the video
+decoder after capture. One JPEG (at most 256 KiB) is retained per import and removed
+with that import. Missing or damaged previews regenerate automatically, including
+a bounded retry for browser decode failures. Unsupported codecs keep a fallback card.
+A desktop playback failure does not hide the library or block thumbnail generation.
+
+Pause in full screen ignores OpenWall, desktop/taskbar windows, hidden windows,
+and normal maximized windows. It pauses for an external borderless client covering
+its display. Geometry remains a heuristic; test your games/apps on your Windows build.
+
 H.264 MP4 is the most portable video choice; codec availability depends on Windows.
 Explorer embedding uses an undocumented WorkerW interface and may vary by Windows
-build. The Windows release is explicitly a **preview**, with verification limits in
+build. The Windows release has verification limits documented in
 [VALIDATION.md](VALIDATION.md).
 
 ### Windows screen saver and lock-screen image

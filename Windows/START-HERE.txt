@@ -1,0 +1,19 @@
+OpenWall for Windows — 1.3.0
+
+1. Extract the entire ZIP before opening the app.
+2. Double-click Start OpenWall.cmd beside this note.
+   Or open the OpenWall folder, then double-click OpenWall.exe.
+   Windows may hide .exe: choose the OpenWall file with Type = Application.
+3. Click a wallpaper to apply it, or use Import videos for your own files.
+
+Keep the OpenWall folder and all its files together. There is no installer.
+If the app asks for Microsoft Edge WebView2 Runtime, use its Microsoft download button.
+
+To update: quit OpenWall from its tray menu, extract the new ZIP into a new
+folder, and open the new copy. Your imported wallpapers and settings are kept
+in %LOCALAPPDATA%\OpenWall and do not need to be reimported.
+
+Source, updates, known limits: https://github.com/satwik404-eng/OpenWall
+
+This Windows build is unsigned. Windows Application Control or organization policy may
+block it; ask your administrator rather than disabling those protections.

@@ -14,6 +14,7 @@ internal sealed class LibraryWindow : Form {
     private readonly SemaphoreSlim gate = new(1, 1);
     private readonly Dictionary<string, WallpaperWindow> desktops = [];
     private readonly PlaylistModel model;
+    private readonly ThumbnailCache thumbnails;
     private CoreWebView2Environment? environment;
     private bool quitting, sleeping, locked, ready, importing;
     private string target = "all";
@@ -23,12 +24,14 @@ internal sealed class LibraryWindow : Form {
     private string[] Targets => Connected.Where(id => target == "all" || target == id).ToArray();
 
     public LibraryWindow() {
-        Text = "OpenWall 1.2 — Windows Preview";
+        Text = "OpenWall 1.3.0 — Windows";
         Size = new(1120, 780); MinimumSize = new(900, 650);
         StartPosition = FormStartPosition.CenterScreen;
         Icon = Icon.ExtractAssociatedIcon(Environment.ProcessPath!) ?? SystemIcons.Application;
         Directory.CreateDirectory(Media);
         model = new(Path.Combine(root, "library.json"));
+        thumbnails = new(Path.Combine(root, "Thumbnails"));
+        try { thumbnails.Prune(model.State.Videos.Select(w => w.Id)); } catch (IOException) { } catch (UnauthorizedAccessException) { }
         Controls.Add(browser);
         var menu = new ContextMenuStrip();
         menu.Items.Add("Open OpenWall", null, (_, _) => { Show(); WindowState = FormWindowState.Normal; Activate(); });
@@ -55,17 +58,25 @@ internal sealed class LibraryWindow : Form {
                 try {
                     using var document = JsonDocument.Parse(e.WebMessageAsJson);
                     var message = document.RootElement;
-                    if (message.TryGetProperty("command", out var command)) await Command(command.GetString()!, message);
-                } catch (Exception error) { Notice(error.Message); }
+                    if (message.TryGetProperty("command", out var command)) {
+                        if (command.GetString() == "thumbnail") SaveThumbnail(message);
+                        else if (command.GetString() == "thumbnailInvalid") {
+                            var id = message.GetProperty("id").GetString();
+                            if (id is not null && model.State.Videos.Any(w => w.Id == id)) { thumbnails.Remove(id); SendState(); }
+                        }
+                        else await Command(command.GetString()!, message);
+                    }
+                } catch (Exception error) { Report(error, "Reading library message"); }
             };
             browser.Source = new Uri("https://app.openwall.local/index.html");
             UpdatePause();
-            await Restore();
+            // The page ready command restores playback under the command gate.
+            // Starting another restore here can create duplicate WebView controllers.
             timer.Start();
             if (model.LoadError is not null) Notice(model.LoadError);
         } catch (WebView2RuntimeNotFoundException) {
             ShowRuntimeHelp();
-        } catch (Exception error) { Notice(error.Message); }
+        } catch (Exception error) { Report(error, "Starting OpenWall"); }
     }
 
     private void ShowRuntimeHelp() {
@@ -79,6 +90,11 @@ internal sealed class LibraryWindow : Form {
     private void Notice(string text) {
         if (ready && browser.CoreWebView2 is not null) browser.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(new { notice = text }));
         else MessageBox.Show(this, text, "OpenWall", MessageBoxButtons.OK, MessageBoxIcon.Information);
+    }
+    private void Report(Exception error, string operation) {
+        var details = operation + Environment.NewLine + error;
+        try { File.WriteAllText(Path.Combine(root, "last-error.txt"), details[..Math.Min(details.Length, 8192)]); } catch (IOException) { } catch (UnauthorizedAccessException) { }
+        Notice(operation + ": " + error.Message);
     }
 
     private string Status => model.State.Assignments.Count == 0 ? "Ready when you are"
@@ -97,11 +113,22 @@ internal sealed class LibraryWindow : Form {
         if (!ready || browser.CoreWebView2 is null) return;
         model.Checkpoint(); model.Anchor(Connected);
         browser.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(new {
-            state = model.State, wallpapers = model.Wallpapers, target, status = Status,
-            paused = model.Paused, importing, version = "1.2.0 Windows Preview",
+            state = model.State, wallpapers = model.Wallpapers.Select(w => new {
+                w.Id, w.Name, w.Filename, thumbnail = thumbnails.Name(w.Id), thumbnailRevision = thumbnails.Revision(w.Id)
+            }), target, status = Status,
+            paused = model.Paused, importing, version = "1.3.0 Windows",
             sentAt = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
             displays = Screen.AllScreens.Select((s, i) => new { id = s.DeviceName, name = "Display " + (i + 1) + (s.Primary ? " · Main" : "") })
         }, PlaylistModel.Json));
+    }
+
+    private void SaveThumbnail(JsonElement data) {
+        if (!data.TryGetProperty("id", out var idValue) || !data.TryGetProperty("jpeg", out var jpegValue)) return;
+        var id = idValue.GetString();
+        if (id is null || !model.State.Videos.Any(w => w.Id == id)) return;
+        try {
+            if (thumbnails.Store(id, jpegValue.GetString() ?? "")) SendState();
+        } catch (IOException) { } catch (UnauthorizedAccessException) { }
     }
 
     private async Task Command(string command, JsonElement data = default) {
@@ -140,9 +167,14 @@ internal sealed class LibraryWindow : Form {
             }
             UpdatePause();
             await Restore();
-            model.Save(); SendState();
-        } catch (Exception error) { Notice(error.Message); }
-        finally { gate.Release(); }
+        } catch (Exception error) { Report(error, "Updating wallpaper"); }
+        finally {
+            // A desktop/codec failure must not hide the library or prevent previews.
+            if (!quitting) {
+                try { model.Save(); SendState(); } catch (Exception error) { Report(error, "Saving library"); }
+            }
+            gate.Release();
+        }
     }
 
     private async Task ImportVideos() {
@@ -179,6 +211,7 @@ internal sealed class LibraryWindow : Form {
             model.State.Assignments.Remove(screen); model.State.Playback.Remove(screen);
         }
         model.State.Videos.Remove(item);
+        thumbnails.Remove(id);
         File.Delete(Path.Combine(Media, item.Filename));
     }
 
@@ -206,7 +239,7 @@ internal sealed class LibraryWindow : Form {
     }
 
     private async Task Poll() {
-        if (quitting || !await gate.WaitAsync(0)) return;
+        if (quitting || !ready || !await gate.WaitAsync(0)) return;
         try {
             var previousStatus = Status;
             UpdatePause();
@@ -214,7 +247,7 @@ internal sealed class LibraryWindow : Form {
             await Restore();
             if (advanced) model.Save();
             if (advanced || previousStatus != Status) SendState();
-        } catch (Exception error) { timer.Stop(); Notice(error.Message); }
+        } catch (Exception error) { timer.Stop(); Report(error, "Refreshing wallpaper"); }
         finally { gate.Release(); }
     }
     private void PowerChanged(object sender, PowerModeChangedEventArgs e) {

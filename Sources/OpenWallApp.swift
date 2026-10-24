@@ -1,8 +1,18 @@
 import SwiftUI
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
+    private var preparingQuit = false
     func applicationDidFinishLaunching(_ notification: Notification) { Library.shared.start() }
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        guard !preparingQuit else { return .terminateLater }
+        preparingQuit = true
+        Task { @MainActor in
+            await Library.shared.freezeDesktopForQuit()
+            sender.reply(toApplicationShouldTerminate: true)
+        }
+        return .terminateLater
+    }
     func applicationWillTerminate(_ notification: Notification) { Library.shared.shutdown() }
 }
 

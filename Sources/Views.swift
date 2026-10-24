@@ -185,6 +185,8 @@ struct LibraryView: View {
                 Button("Edit wallpaper playlist") { library.section = "Playlist" }
                 Text("Full-screen or display-covering apps pause all wallpapers. Playback resumes when you return, unless another pause setting is active. Videos are muted; display sleep also pauses playback.")
                     .font(.caption).foregroundStyle(.secondary)
+                Text("Quitting OpenWall leaves a still frame of the current wallpaper on each display. Reopen OpenWall to resume live playback.")
+                    .font(.caption).foregroundStyle(.secondary)
             }
             Section("Lock screen & screen saver") {
                 Toggle("Use live wallpaper on the lock screen", isOn: $library.state.liveLockScreen)
@@ -207,7 +209,7 @@ struct LibraryView: View {
             Section("Local by design") {
                 Text("No account, analytics, subscription, or cloud connection. Imported videos are copied into OpenWall’s library; your original files stay where they are.")
                 Button("Show local library in Finder") { NSWorkspace.shared.open(Storage.root) }
-                Text("OpenWall 1.2.1 · MIT License\nIndependent software. Not affiliated with Wallper.").font(.caption).foregroundStyle(.secondary)
+                Text("OpenWall 1.3.0 · MIT License\nIndependent software. Not affiliated with Wallper.").font(.caption).foregroundStyle(.secondary)
             }
         }.formStyle(.grouped)
     }
