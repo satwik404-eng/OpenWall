@@ -28,10 +28,11 @@ window.MotionRenderer = (() => {
   function draw(canvas, id, time = 1.7) {
     const item = items.get(id) || catalog.items[0], ctx = canvas.getContext('2d');
     const w = canvas.width, h = canvas.height;
-    ctx.clearRect(0,0,w,h); ctx.fillStyle='#000'; ctx.fillRect(0,0,w,h);
+    ctx.globalAlpha=1; ctx.clearRect(0,0,w,h); ctx.fillStyle='#000'; ctx.fillRect(0,0,w,h);
     ctx.fillStyle=shading(ctx,catalog.background,item.palette,w,h);ctx.fillRect(0,0,w,h);
     for (const shape of catalog.scenes[item.style]) {
       const points = vertices(shape,time); if (!points.length) continue;
+      ctx.globalAlpha=1-shape.opacityPulse*(.5+.5*Math.sin(time*shape.opacityRate+shape.opacityPhase));
       ctx.beginPath();
       if (shape.pixelRadius > 0) ctx.ellipse(points[0][0]*w+shape.pixelRadius,points[0][1]*h+shape.pixelRadius,shape.pixelRadius,shape.pixelRadius,0,0,Math.PI*2);
       else {
@@ -43,6 +44,7 @@ window.MotionRenderer = (() => {
       if(shape.stroke>0){ctx.strokeStyle=shader;ctx.lineWidth=shape.stroke*Math.min(w,h);ctx.stroke();}
       else{ctx.fillStyle=shader;ctx.fill();}
     }
+    ctx.globalAlpha=1;
   }
   return {draw,vertices,items};
 })();

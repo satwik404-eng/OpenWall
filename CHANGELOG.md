@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.3.1 — Constellation live motion fix
+
+- Give Constellation visible star-field drift, gentle rotation and individual star twinkling in all eight palettes.
+- Keep constellation lines attached to their stars through a shared motion transform.
+- Keep Mac live wallpaper windows above the system background while still below desktop icons and other apps.
+- Apply the same animation to desktop playback, native motion exports and screen savers on both platforms.
+
 ## 1.3.0 — Known bug fixes and expanded motion collection
 
 - Add 80 motion wallpapers: ten distinct styles with eight palettes each; retain the original nine (89 total).

@@ -13,8 +13,12 @@ import Observation
     init() {
         let file = LockScreenRenderer.root.appendingPathComponent("prepared.json")
         if let data = try? Data(contentsOf: file), let saved = try? JSONDecoder().decode([String: LockScreenMedia].self, from: data) {
-            cache = saved.filter { _, media in
-                media.movie.deletingLastPathComponent() == LockScreenRenderer.root && FileManager.default.fileExists(atPath: media.movie.path)
+            cache = saved.filter { id, media in
+                let currentArtwork = MotionCatalog.byID[id] == nil || media.renderRevision == MotionCatalog.shared.version
+                if !currentArtwork, media.movie.deletingLastPathComponent() == LockScreenRenderer.root {
+                    try? FileManager.default.removeItem(at: media.movie)
+                }
+                return currentArtwork && media.movie.deletingLastPathComponent() == LockScreenRenderer.root && FileManager.default.fileExists(atPath: media.movie.path)
             }
         }
     }

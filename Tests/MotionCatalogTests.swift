@@ -21,6 +21,21 @@ import SwiftUI
             geometry[style] = shapes.map { $0.vertices(time: 1.7) }
         }
         try JSONSerialization.data(withJSONObject: geometry, options: [.sortedKeys]).write(to: output.appendingPathComponent("geometry.json"))
+        let moving = ImageRenderer(content: MotionArtwork(preset: "constellation-midnight", fixedTime: 1.7).frame(width: 480, height: 270))
+        let later = ImageRenderer(content: MotionArtwork(preset: "constellation-midnight", fixedTime: 1.95).frame(width: 480, height: 270))
+        moving.scale = 1; later.scale = 1
+        let firstFrame = NSBitmapImageRep(cgImage: moving.cgImage!)
+        let nextFrame = NSBitmapImageRep(cgImage: later.cgImage!)
+        var changed = 0
+        for y in 0..<270 { for x in 0..<480 {
+            let a = firstFrame.colorAt(x: x, y: y)!.usingColorSpace(.deviceRGB)!
+            let b = nextFrame.colorAt(x: x, y: y)!.usingColorSpace(.deviceRGB)!
+            if abs(a.redComponent-b.redComponent)+abs(a.greenComponent-b.greenComponent)+abs(a.blueComponent-b.blueComponent) > 0.08 { changed += 1 }
+        }}
+        precondition(changed > 500, "Constellation must visibly move within two seconds")
+        try firstFrame.representation(using: .png, properties: [:])!.write(to: output.appendingPathComponent("constellation-before.png"))
+        try nextFrame.representation(using: .png, properties: [:])!.write(to: output.appendingPathComponent("constellation-after.png"))
+        print("PASS Constellation visibly changes \(changed) pixels within two seconds")
         var images = Set<Data>()
         for item in catalog.items {
             let renderer = ImageRenderer(content: MotionArtwork(preset: item.id, fixedTime: 1.7).frame(width: 480, height: 270))

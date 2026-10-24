@@ -8,7 +8,7 @@
     <Nullable>enable</Nullable>
     <AssemblyName>OpenWall</AssemblyName>
     <RootNamespace>OpenWall.Windows</RootNamespace>
-    <Version>1.3.0</Version>
+    <Version>1.3.1</Version>
     <ApplicationIcon>Assets/OpenWall.ico</ApplicationIcon>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <PublishTrimmed>false</PublishTrimmed>

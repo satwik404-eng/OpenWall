@@ -26,7 +26,7 @@ enum MotionCGRenderer {
         for shape in catalog.scenes[item.style] ?? [] {
             let vertices = shape.vertices(time: time)
             guard let first = vertices.first else { continue }
-            context.saveGState(); context.beginPath()
+            context.saveGState(); context.setAlpha(shape.opacity(time: time)); context.beginPath()
             if shape.pixelRadius > 0 {
                 context.addEllipse(in: CGRect(x: first[0] * size.width, y: first[1] * size.height, width: shape.pixelRadius * 2, height: shape.pixelRadius * 2))
             } else {

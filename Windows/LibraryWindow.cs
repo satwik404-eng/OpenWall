@@ -24,7 +24,7 @@ internal sealed class LibraryWindow : Form {
     private string[] Targets => Connected.Where(id => target == "all" || target == id).ToArray();
 
     public LibraryWindow() {
-        Text = "OpenWall 1.3.0 — Windows";
+        Text = "OpenWall 1.3.1 — Windows";
         Size = new(1120, 780); MinimumSize = new(900, 650);
         StartPosition = FormStartPosition.CenterScreen;
         Icon = Icon.ExtractAssociatedIcon(Environment.ProcessPath!) ?? SystemIcons.Application;
@@ -116,7 +116,7 @@ internal sealed class LibraryWindow : Form {
             state = model.State, wallpapers = model.Wallpapers.Select(w => new {
                 w.Id, w.Name, w.Filename, thumbnail = thumbnails.Name(w.Id), thumbnailRevision = thumbnails.Revision(w.Id)
             }), target, status = Status,
-            paused = model.Paused, importing, version = "1.3.0 Windows",
+            paused = model.Paused, importing, version = "1.3.1 Windows",
             sentAt = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
             displays = Screen.AllScreens.Select((s, i) => new { id = s.DeviceName, name = "Display " + (i + 1) + (s.Primary ? " · Main" : "") })
         }, PlaylistModel.Json));

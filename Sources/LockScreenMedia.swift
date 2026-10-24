@@ -8,6 +8,7 @@ struct LockScreenMedia: Sendable, Codable {
     let id: String
     let movie: URL
     let poster: URL
+    var renderRevision: Int? = nil
 }
 
 enum LockScreenFailure: LocalizedError {
@@ -60,7 +61,7 @@ enum LockScreenFailure: LocalizedError {
                 try await encodeMotion(item.id, to: movie)
             }
             try Task.checkCancellation()
-            return LockScreenMedia(id: id, movie: movie, poster: poster)
+            return LockScreenMedia(id: id, movie: movie, poster: poster, renderRevision: item.isVideo ? nil : MotionCatalog.shared.version)
         } catch {
             try? FileManager.default.removeItem(at: movie)
             throw error

@@ -1,5 +1,15 @@
 # Validation — 24 October 2026
 
+## Version 1.3.1 — Constellation live motion
+
+The native renderer changes 6,847 pixels at 480 × 270 between frames separated
+by two seconds. All 89 artworks still render distinctly, all scenes loop, and
+11,490 Mac/Windows coordinates match within 1e-12. Mac playback integration checks
+pass with wallpaper windows below desktop icons. Version 1.3.1 was installed;
+the user selected Constellation Arctic and confirmed visible live movement.
+Changed motion export caches carry a catalog revision so earlier renders regenerate.
+Windows runtime verification remains subject to the 1.3.0 limits below.
+
 ## Version 1.3.0
 
 Both Windows self-contained architectures and the native Mac app/screen saver build.

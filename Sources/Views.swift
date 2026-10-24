@@ -209,7 +209,7 @@ struct LibraryView: View {
             Section("Local by design") {
                 Text("No account, analytics, subscription, or cloud connection. Imported videos are copied into OpenWall’s library; your original files stay where they are.")
                 Button("Show local library in Finder") { NSWorkspace.shared.open(Storage.root) }
-                Text("OpenWall 1.3.0 · MIT License\nIndependent software. Not affiliated with Wallper.").font(.caption).foregroundStyle(.secondary)
+                Text("OpenWall 1.3.1 · MIT License\nIndependent software. Not affiliated with Wallper.").font(.caption).foregroundStyle(.secondary)
             }
         }.formStyle(.grouped)
     }

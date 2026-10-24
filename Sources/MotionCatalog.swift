@@ -13,8 +13,9 @@ struct MotionShape: Decodable {
     let closed: Bool
     let stroke: Double
     let pivot: [Double]
-    let rotation, rotate, driftX, driftY, pulse, rate, phase, warpX, warpY, frequency, pixelRadius: Double
+    let rotation, rotate, driftX, driftY, pulse, rate, phase, warpX, warpY, frequency, pixelRadius, opacityPulse, opacityRate, opacityPhase: Double
     let fill: MotionFill
+    func opacity(time: Double) -> Double { 1 - opacityPulse * (0.5 + 0.5 * sin(time * opacityRate + opacityPhase)) }
     func vertices(time: Double) -> [[Double]] {
         let t = time * rate + phase
         let angle = rotation + sin(t) * rotate
