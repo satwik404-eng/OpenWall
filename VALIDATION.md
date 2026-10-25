@@ -1,4 +1,28 @@
-# Validation — 24 October 2026
+# Validation — 25 October 2026
+
+## Version 1.4.0 — Frame rate and source-aware resolution
+
+Mac integration checks create a real H.264 3840 × 2160 fixture, encode silent
+1920 × 1080 and 2560 × 1440 HEVC copies, verify playability and dimensions,
+reuse existing copies, and confirm that source bytes are unchanged. Resolution
+policies cover 4K, 1440p, 1080p, portrait and sub-1080p originals. New settings
+persist and migrate older libraries safely. The existing playback, pause,
+playlist, export and quit-to-still suite passes.
+
+Installed Mac UI verification shows 1080p, 1440p and 4K for a synthetic 4K import;
+choosing 1080p created its quality copy. The disposable import and copy were
+removed afterward, preserving all personal videos. The Motion frame rate control
+shows 24/60/120 fps, and 120 fps is persisted. This requests a cadence subject to
+display/system limits; physical sustained 120 fps has not been measured.
+
+Windows x64/ARM64 compile. Pure model tests verify resolution choices, no
+upscaling, settings persistence, and the existing pause/cache/playlist rules.
+A deterministic frame-loop harness checks 24/60/120 fps under simulated
+60/120/240 Hz refresh, phase preservation and pause/resume. This is a scheduler
+test rather than a physical display measurement. A Chromium UI harness verifies
+all three source-tier menus and the 120 fps selector with a simulated native bridge.
+Windows WinRT transcoding and
+Explorer/WebView2 runtime remain unverified under the VM policy limit below.
 
 ## Version 1.3.1 — Clearer live motion
 

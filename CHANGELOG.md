@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.4.0 — Frame rate and video quality
+
+- Choose 60 or 120 fps for the Motion collection; retain 24 fps as a lower-power option. Screen savers read the same preference.
+- Choose a video’s playback resolution from its preview: 4K sources offer 1080p, 1440p and 4K; 1440p offers 1080p and 1440p. Lower-resolution videos retain their original maximum resolution.
+- Prepare real lower-resolution playback copies on demand, without modifying source videos or creating artificial video frames.
+- Encode one quality copy at a time, limit each to 512 MiB and completed copies to 2 GiB, preserve active files, remove copies with their imports, and clean unfinished work after restart.
+- Preserve motion timing when changing frame rate; actual refresh follows display/system capabilities.
+
 ## 1.3.1 — Clearer motion and known bug fixes
 
 - Make all motion styles easier to see at 1×, with broader Dune crest movement and individually tuned drift, rotation and breathing.

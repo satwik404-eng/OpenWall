@@ -13,6 +13,8 @@ internal static class WebSurface {
         var thumbnails = Path.Combine(Path.GetDirectoryName(media)!, "Thumbnails");
         Directory.CreateDirectory(thumbnails);
         core.SetVirtualHostNameToFolderMapping("thumbnails.openwall.local", thumbnails, CoreWebView2HostResourceAccessKind.DenyCors);
+        var quality = Path.Combine(Path.GetDirectoryName(media)!, "VideoQuality"); Directory.CreateDirectory(quality);
+        core.SetVirtualHostNameToFolderMapping("quality.openwall.local", quality, CoreWebView2HostResourceAccessKind.DenyCors);
         core.Settings.AreDefaultContextMenusEnabled = false;
         core.Settings.AreDevToolsEnabled = false;
         core.Settings.IsStatusBarEnabled = false;
@@ -27,7 +29,7 @@ internal static class WebSurface {
         core.AddWebResourceRequestedFilter("*", CoreWebView2WebResourceContext.All);
         core.WebResourceRequested += (_, e) => {
             if (Uri.TryCreate(e.Request.Uri, UriKind.Absolute, out var uri)
-                && uri.Scheme is "http" or "https" && uri.Host is not ("app.openwall.local" or "media.openwall.local" or "thumbnails.openwall.local"))
+                && uri.Scheme is "http" or "https" && uri.Host is not ("app.openwall.local" or "media.openwall.local" or "thumbnails.openwall.local" or "quality.openwall.local"))
                 e.Response = environment.CreateWebResourceResponse(new MemoryStream(), 403, "External requests are disabled", "Content-Type: text/plain");
         };
     }
@@ -37,6 +39,8 @@ internal sealed class WallpaperWindow : Form {
     private readonly WebView2 browser = new() { Dock = DockStyle.Fill, DefaultBackgroundColor = Color.Black };
     private bool? lastPaused;
     private double lastSpeed;
+    private int lastFPS;
+    public string? QualityFilename { get; private set; }
     private readonly Wallpaper wallpaper;
     public string WallpaperId => wallpaper.Id;
     protected override bool ShowWithoutActivation => true;
@@ -49,7 +53,8 @@ internal sealed class WallpaperWindow : Form {
         ShowInTaskbar = false; BackColor = Color.Black;
         Controls.Add(browser);
     }
-    public async Task Initialize(CoreWebView2Environment environment, string media, Screen screen, bool paused, double speed, Action<string> error) {
+    public async Task Initialize(CoreWebView2Environment environment, string media, Screen screen, bool paused, double speed, int motionFPS, string? qualityFilename, Action<string> error) {
+        QualityFilename = qualityFilename;
         Bounds = screen.Bounds;
         Show();
         NativeDesktop.Attach(this, screen);
@@ -66,14 +71,14 @@ internal sealed class WallpaperWindow : Form {
         browser.Source = new Uri("https://app.openwall.local/wallpaper.html");
         await ready.Task.WaitAsync(TimeSpan.FromSeconds(20));
         await browser.ExecuteScriptAsync("initializeWallpaper(" + System.Text.Json.JsonSerializer.Serialize(new {
-            id = wallpaper.Id, filename = wallpaper.Filename, paused, speed
+            id = wallpaper.Id, filename = qualityFilename ?? wallpaper.Filename, qualityCopy = qualityFilename is not null, paused, speed, motionFPS
         }) + ")");
-        lastPaused = paused; lastSpeed = speed;
+        lastPaused = paused; lastSpeed = speed; lastFPS = motionFPS;
     }
-    public async Task SetPlayback(bool paused, double speed) {
-        if (lastPaused == paused && lastSpeed == speed) return;
-        await browser.ExecuteScriptAsync($"setPlayback({(paused ? "true" : "false")}, {speed.ToString(System.Globalization.CultureInfo.InvariantCulture)})");
-        lastPaused = paused; lastSpeed = speed;
+    public async Task SetPlayback(bool paused, double speed, int motionFPS) {
+        if (lastPaused == paused && lastSpeed == speed && lastFPS == motionFPS) return;
+        await browser.ExecuteScriptAsync($"setPlayback({(paused ? "true" : "false")}, {speed.ToString(System.Globalization.CultureInfo.InvariantCulture)}, {motionFPS})");
+        lastPaused = paused; lastSpeed = speed; lastFPS = motionFPS;
     }
     public async Task CaptureImage(string path) {
         await using var stream = File.Create(path);

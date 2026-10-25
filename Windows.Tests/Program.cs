@@ -4,6 +4,15 @@ double clock = 0;
 var file = Path.Combine(temp, "library.json");
 var m = new PlaylistModel(file, () => clock);
 void Check(bool test, string message) { if (!test) throw new Exception(message); Console.WriteLine("PASS " + message); }
+Check(VideoQualityPolicy.Options(3840,2160).SequenceEqual(new[] {1080,1440,2160}), "4K offers 1080p, 1440p and 4K");
+Check(VideoQualityPolicy.Options(2560,1440).SequenceEqual(new[] {1080,1440}), "1440p offers 1080p and 1440p without upscaling");
+Check(VideoQualityPolicy.Options(2160,3840).SequenceEqual(new[] {1080,1440,2160}), "Portrait resolution choices preserve orientation");
+Check(VideoQualityPolicy.Options(1280,720).SequenceEqual(new[] {0}), "Low resolution sources keep Original quality");
+foreach(var fps in new[] {24,60,120}) { m.State.MotionFPS=fps; m.Save(); Check(new PlaylistModel(file).State.MotionFPS==fps, "Frame rate " + fps + " persists"); }
+var qualityId=Guid.NewGuid().ToString("N"); m.State.Videos.Add(new(qualityId,"fixture","fixture.mp4",3840,2160)); m.State.VideoQuality[qualityId]=1440; m.Save();
+Check(new PlaylistModel(file).State.VideoQuality[qualityId]==1440,"Per-video quality persists");
+m.State.MotionFPS=999; m.Save(); Check(new PlaylistModel(file).State.MotionFPS==60,"Invalid frame rate resets safely");
+m.State.Videos.RemoveAll(v => v.Id == qualityId); m.State.VideoQuality.Remove(qualityId); m.State.MotionFPS=60; m.Save();
 string[] screens = ["main", "other"];
 Check(PlaylistModel.Durations.SequenceEqual(new[] { 86400,21600,10800,3600,1800,300,0 }), "All seven requested durations");
 Check(m.Wallpapers.Count() == 89 && m.Wallpapers.Select(w => w.Id).Distinct().Count() == 89, "89 unique original motion wallpapers");

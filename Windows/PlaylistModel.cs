@@ -2,7 +2,7 @@ using System.Text.Json;
 
 namespace OpenWall.Windows;
 
-public record Wallpaper(string Id, string Name, string? Filename = null);
+public record Wallpaper(string Id, string Name, string? Filename = null, int PixelWidth = 0, int PixelHeight = 0);
 public record PlaylistEntry(string Id, string WallpaperId, int Duration = 3600);
 public class PlaylistProgress {
     public string EntryId { get; set; } = "";
@@ -17,6 +17,8 @@ public class LibraryState {
     public bool PauseOnBattery { get; set; } = true;
     public bool PauseInFullScreen { get; set; } = true;
     public double Speed { get; set; } = 1;
+    public int MotionFPS { get; set; } = 60;
+    public Dictionary<string, int> VideoQuality { get; set; } = [];
 }
 
 public class PlaylistModel {
@@ -44,6 +46,8 @@ public class PlaylistModel {
             try { State = JsonSerializer.Deserialize<LibraryState>(File.ReadAllText(file), Json) ?? new(); }
             catch (Exception error) { LoadError = "The saved library could not be read. " + error.Message; }
         }
+        if (!VideoQualityPolicy.FrameRates.Contains(State.MotionFPS)) State.MotionFPS = 60;
+        State.VideoQuality = State.VideoQuality.Where(p => State.Videos.Any(v => v.Id == p.Key) && new[] {0,1080,1440,2160}.Contains(p.Value)).ToDictionary();
         Paused = State.ManualPause;
     }
     public void Save() {

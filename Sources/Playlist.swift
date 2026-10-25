@@ -163,7 +163,7 @@ struct PlaylistPlayback: Codable, Equatable {
         state.playlistPlayback[screenID] = PlaylistPlayback(entryID: entry.id, remainingSeconds: entry.duration.seconds)
         selection = item.id
         if let screen = NSScreen.screens.first(where: { $0.wallpaperID == screenID }) {
-            engine?.apply(item, to: screen, paused: paused, speed: state.speed)
+            applyToScreen(item, screen: screen)
         }
         syncLockScreen()
     }
@@ -175,6 +175,7 @@ struct PlaylistPlayback: Codable, Equatable {
     }
 
     func freezeDesktopForQuit() async {
+        qualityJobs.values.forEach { $0.cancel() }; qualityJobs.removeAll()
         lockScreen.cancel()
         checkpointPlaylistClocks()
         stopMonitoring()
@@ -204,6 +205,7 @@ struct PlaylistPlayback: Codable, Equatable {
     }
 
     func shutdown() {
+        qualityJobs.values.forEach { $0.cancel() }; qualityJobs.removeAll(); qualityTokens.removeAll(); qualityBusy.removeAll()
         lockScreen.cancel()
         checkpointPlaylistClocks()
         stopMonitoring()

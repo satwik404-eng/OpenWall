@@ -45,7 +45,9 @@ final class OpenWallSaverView: ScreenSaverView {
                 layer?.addSublayer(poster); videoLayer = poster
                 return
             }
-            let url = root.appendingPathComponent("Media").appendingPathComponent(filename)
+            let quality = (state["videoQuality"] as? [String: Int])?[id] ?? 0
+            let cached = root.appendingPathComponent("VideoQuality").appendingPathComponent("\(id)-\(quality).mov")
+            let url = quality > 0 && FileManager.default.fileExists(atPath: cached.path) ? cached : root.appendingPathComponent("Media").appendingPathComponent(filename)
             if FileManager.default.fileExists(atPath: url.path) {
                 let queue = AVQueuePlayer()
                 queue.isMuted = true
@@ -63,7 +65,9 @@ final class OpenWallSaverView: ScreenSaverView {
         }
         motionPreset = id
         motionPaused = pauseOnBattery
-        animationTimeInterval = pauseOnBattery ? 1 : 1.0 / 24
+        let requestedFPS = state["motionFPS"] as? Int ?? 60
+        let fps = [24, 60, 120].contains(requestedFPS) ? requestedFPS : 60
+        animationTimeInterval = pauseOnBattery ? 1 : 1.0 / Double(min(fps, max(1, window?.screen?.maximumFramesPerSecond ?? 60)))
         needsDisplay = true
     }
     override func animateOneFrame() {

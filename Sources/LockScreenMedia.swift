@@ -128,13 +128,16 @@ enum NativeMovieEncoder {
         return writer
     }
 
-    static func transcode(_ source: URL, to destination: URL) async throws {
+    static func transcode(_ source: URL, to destination: URL, shortEdge: Int? = nil, maximumBytes: Int64? = nil) async throws {
         let asset = AVURLAsset(url: source)
         guard let track = try await asset.loadTracks(withMediaType: .video).first else { throw LockScreenFailure.unavailable("The wallpaper has no video track.") }
         let size = try await track.load(.naturalSize)
         let transform = try await track.load(.preferredTransform)
         let rate = try await track.load(.nominalFrameRate)
-        let scale = min(1, 1920 / max(size.width, size.height))
+        let scale = shortEdge.map { min(1, Double($0) / min(size.width, size.height)) } ?? min(1, 1920 / max(size.width, size.height))
+        if let maximumBytes, try await asset.load(.duration).seconds * 750_000 > Double(maximumBytes) {
+            throw LockScreenFailure.unavailable("This video is too long for a cached quality copy. Use Original quality.")
+        }
         let width = max(2, Int(size.width * scale / 2) * 2), height = max(2, Int(size.height * scale / 2) * 2)
         let reader = try AVAssetReader(asset: asset)
         let output = AVAssetReaderTrackOutput(track: track, outputSettings: [kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_420YpCbCr10BiPlanarVideoRange])
@@ -147,7 +150,13 @@ enum NativeMovieEncoder {
         guard reader.startReading(), writer.startWriting() else { throw writer.error ?? reader.error ?? LockScreenFailure.unavailable("Video processing could not start.") }
         writer.startSession(atSourceTime: .zero)
         do {
+            var samples = 0
             while let sample = output.copyNextSampleBuffer() {
+                samples += 1
+                if samples % 120 == 0, let maximumBytes,
+                   Int64((try? destination.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0) > maximumBytes {
+                    throw LockScreenFailure.unavailable("The quality copy exceeds the cache limit. Use Original quality.")
+                }
                 try Task.checkCancellation()
                 while !input.isReadyForMoreMediaData {
                     guard writer.status == .writing else { throw writer.error ?? LockScreenFailure.unavailable("Video encoding stopped.") }

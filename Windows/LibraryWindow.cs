@@ -15,6 +15,8 @@ internal sealed class LibraryWindow : Form {
     private readonly Dictionary<string, WallpaperWindow> desktops = [];
     private readonly PlaylistModel model;
     private readonly ThumbnailCache thumbnails;
+    private readonly VideoQualityCache qualityCache;
+    private readonly Dictionary<string, CancellationTokenSource> qualityJobs = [];
     private CoreWebView2Environment? environment;
     private bool quitting, sleeping, locked, ready, importing;
     private string target = "all";
@@ -24,13 +26,15 @@ internal sealed class LibraryWindow : Form {
     private string[] Targets => Connected.Where(id => target == "all" || target == id).ToArray();
 
     public LibraryWindow() {
-        Text = "OpenWall 1.3.1 — Windows";
+        Text = "OpenWall 1.4.0 — Windows";
         Size = new(1120, 780); MinimumSize = new(900, 650);
         StartPosition = FormStartPosition.CenterScreen;
         Icon = Icon.ExtractAssociatedIcon(Environment.ProcessPath!) ?? SystemIcons.Application;
         Directory.CreateDirectory(Media);
         model = new(Path.Combine(root, "library.json"));
         thumbnails = new(Path.Combine(root, "Thumbnails"));
+        qualityCache = new(Path.Combine(root, "VideoQuality"));
+        qualityCache.CleanUnfinished();
         try { thumbnails.Prune(model.State.Videos.Select(w => w.Id)); } catch (IOException) { } catch (UnauthorizedAccessException) { }
         Controls.Add(browser);
         var menu = new ContextMenuStrip();
@@ -114,9 +118,9 @@ internal sealed class LibraryWindow : Form {
         model.Checkpoint(); model.Anchor(Connected);
         browser.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(new {
             state = model.State, wallpapers = model.Wallpapers.Select(w => new {
-                w.Id, w.Name, w.Filename, thumbnail = thumbnails.Name(w.Id), thumbnailRevision = thumbnails.Revision(w.Id)
+                w.Id, w.Name, w.Filename, w.PixelWidth, w.PixelHeight, qualityBusy = qualityJobs.ContainsKey(w.Id), thumbnail = thumbnails.Name(w.Id), thumbnailRevision = thumbnails.Revision(w.Id)
             }), target, status = Status,
-            paused = model.Paused, importing, version = "1.3.1 Windows",
+            paused = model.Paused, importing, version = "1.4.0 Windows",
             sentAt = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
             displays = Screen.AllScreens.Select((s, i) => new { id = s.DeviceName, name = "Display " + (i + 1) + (s.Primary ? " · Main" : "") })
         }, PlaylistModel.Json));
@@ -131,13 +135,55 @@ internal sealed class LibraryWindow : Form {
         } catch (IOException) { } catch (UnauthorizedAccessException) { }
     }
 
+    private string? CurrentQualityName(Wallpaper? item) => item is null ? null : qualityCache.CachedName(item, model.State.VideoQuality.GetValueOrDefault(item.Id));
+    private HashSet<string> ProtectedQualityFiles() => model.State.VideoQuality
+        .Where(p => p.Value > 0 && Guid.TryParse(p.Key, out _)).Select(p => VideoQualityPolicy.CopyName(p.Key, p.Value))
+        .Concat(desktops.Values.Select(w => w.QualityFilename).OfType<string>()).ToHashSet();
+    private async Task RefreshVideoDimensions() {
+        foreach (var item in model.State.Videos.ToArray()) {
+            try {
+                var updated = await VideoQualityCache.Probe(item, Media);
+                int index = model.State.Videos.FindIndex(w => w.Id == item.Id);
+                if (index >= 0) model.State.Videos[index] = updated;
+            } catch { /* Unsupported/missing metadata leaves Original quality available. */ }
+        }
+        if (quitting) return;
+        await gate.WaitAsync();
+        try { if (quitting) return; model.Save(); SendState(); await Restore(); }
+        catch (Exception error) { Report(error, "Reading video dimensions"); }
+        finally { gate.Release(); }
+    }
+    private void QueueQuality(Wallpaper item) {
+        int height = model.State.VideoQuality.GetValueOrDefault(item.Id);
+        if (quitting || qualityJobs.ContainsKey(item.Id) || !VideoQualityPolicy.NeedsCopy(item, height) || CurrentQualityName(item) is not null) return;
+        var cancellation = new CancellationTokenSource(); qualityJobs[item.Id] = cancellation;
+        SendState(); _ = PrepareQuality(item, height, cancellation);
+    }
+    private async Task PrepareQuality(Wallpaper item, int height, CancellationTokenSource cancellation) {
+        string? failure = null;
+        try { await qualityCache.Prepare(item, height, Media, ProtectedQualityFiles, cancellation.Token); }
+        catch (OperationCanceledException) { }
+        catch (Exception error) { failure = "Could not prepare " + height + "p: " + error.Message; }
+        try {
+            if (quitting || cancellation.IsCancellationRequested || qualityJobs.GetValueOrDefault(item.Id) != cancellation) return;
+            await gate.WaitAsync();
+            try {
+                if (quitting || cancellation.IsCancellationRequested || qualityJobs.GetValueOrDefault(item.Id) != cancellation) return;
+                qualityJobs.Remove(item.Id);
+                if (failure is not null) { model.State.VideoQuality[item.Id] = 0; Notice(failure + " Original quality is available."); }
+                model.Save(); await Restore(); SendState();
+            } finally { gate.Release(); }
+        } catch (Exception error) { if (!quitting) Report(error, "Applying video quality"); }
+        finally { cancellation.Dispose(); }
+    }
+
     private async Task Command(string command, JsonElement data = default) {
         if (!await gate.WaitAsync(0)) return;
         try {
             string Arg(string name) => data.ValueKind == JsonValueKind.Object && data.TryGetProperty(name, out var property) ? property.ToString() : "";
             model.Checkpoint();
             switch (command) {
-            case "ready": ready = true; break;
+            case "ready": ready = true; _ = RefreshVideoDimensions(); break;
             case "import": await ImportVideos(); break;
             case "apply": model.Apply(Arg("id"), Targets); break;
             case "add": model.Add(Arg("id")); break;
@@ -154,6 +200,16 @@ internal sealed class LibraryWindow : Form {
             case "stop": model.State.Playback.Clear(); model.State.Assignments.Clear(); break;
             case "battery": model.State.PauseOnBattery = Arg("value") == "true"; break;
             case "fullscreen": model.State.PauseInFullScreen = Arg("value") == "true"; break;
+            case "motionFPS":
+                if (int.TryParse(Arg("value"), out var fps) && VideoQualityPolicy.FrameRates.Contains(fps)) model.State.MotionFPS = fps;
+                break;
+            case "videoQuality":
+                var qualityItem = model.State.Videos.FirstOrDefault(w => w.Id == Arg("id"));
+                if (qualityItem is not null && int.TryParse(Arg("value"), out var height) && VideoQualityPolicy.Options(qualityItem.PixelWidth, qualityItem.PixelHeight).Contains(height)) {
+                    if (qualityJobs.Remove(qualityItem.Id, out var previousJob)) previousJob.Cancel();
+                    model.State.VideoQuality[qualityItem.Id] = height; QueueQuality(qualityItem);
+                }
+                break;
             case "speed":
                 var speed = double.Parse(Arg("value"), System.Globalization.CultureInfo.InvariantCulture);
                 if (new[] { 0.5, 1, 1.5, 2 }.Contains(speed)) model.State.Speed = speed;
@@ -186,7 +242,9 @@ internal sealed class LibraryWindow : Form {
             foreach (var source in picker.FileNames) {
                 var id = Guid.NewGuid().ToString("N"); var name = id + Path.GetExtension(source).ToLowerInvariant();
                 await Task.Run(() => File.Copy(source, Path.Combine(Media, name)));
-                model.State.Videos.Add(new(id, Path.GetFileNameWithoutExtension(source), name));
+                var item = new Wallpaper(id, Path.GetFileNameWithoutExtension(source), name);
+                try { item = await VideoQualityCache.Probe(item, Media); } catch { }
+                model.State.Videos.Add(item);
             }
         } finally { importing = false; }
     }
@@ -210,6 +268,8 @@ internal sealed class LibraryWindow : Form {
         foreach (var screen in model.State.Assignments.Where(p => p.Value == id).Select(p => p.Key).ToArray()) {
             model.State.Assignments.Remove(screen); model.State.Playback.Remove(screen);
         }
+        if (qualityJobs.Remove(id, out var job)) job.Cancel();
+        model.State.VideoQuality.Remove(id); qualityCache.Remove(id);
         model.State.Videos.Remove(item);
         thumbnails.Remove(id);
         File.Delete(Path.Combine(Media, item.Filename));
@@ -220,7 +280,9 @@ internal sealed class LibraryWindow : Form {
         var screens = Screen.AllScreens.ToDictionary(s => s.DeviceName);
         foreach (var id in desktops.Keys.ToArray()) {
             if (!screens.ContainsKey(id) || !model.State.Assignments.ContainsKey(id)
-                || desktops[id].WallpaperId != model.State.Assignments[id] || !NativeDesktop.DesktopHostAlive(desktops[id])) {
+                || desktops[id].WallpaperId != model.State.Assignments[id]
+                || desktops[id].QualityFilename != CurrentQualityName(model.Wallpapers.FirstOrDefault(w => w.Id == model.State.Assignments[id]))
+                || !NativeDesktop.DesktopHostAlive(desktops[id])) {
                 desktops[id].Dispose(); desktops.Remove(id);
             }
         }
@@ -231,10 +293,12 @@ internal sealed class LibraryWindow : Form {
                 if (item is null) continue;
                 if (item.Filename is not null && !File.Exists(Path.Combine(Media, item.Filename))) continue;
                 form = new(item);
-                try { await form.Initialize(environment, Media, screen, model.Paused, model.State.Speed, Notice); desktops[screenId] = form; }
+                try { await form.Initialize(environment, Media, screen, model.Paused, model.State.Speed, model.State.MotionFPS, CurrentQualityName(item), Notice); desktops[screenId] = form; }
                 catch { form.Dispose(); throw; }
             }
-            await form.SetPlayback(model.Paused, model.State.Speed);
+            await form.SetPlayback(model.Paused, model.State.Speed, model.State.MotionFPS);
+            var video = model.State.Videos.FirstOrDefault(w => w.Id == id);
+            if (video is not null) QueueQuality(video);
         }
     }
 
@@ -265,7 +329,7 @@ internal sealed class LibraryWindow : Form {
         if (!quitting && IsHandleCreated) BeginInvoke(async () => { foreach (var form in desktops.Values) form.Dispose(); desktops.Clear(); await Poll(); SendState(); });
     }
     private void Quit() {
-        quitting = true; timer.Stop(); model.Checkpoint(); model.Save();
+        quitting = true; foreach (var job in qualityJobs.Values) job.Cancel(); qualityJobs.Clear(); timer.Stop(); model.Checkpoint(); model.Save();
         foreach (var form in desktops.Values) form.Dispose(); desktops.Clear();
         SystemEvents.PowerModeChanged -= PowerChanged;
         SystemEvents.DisplaySettingsChanged -= DisplaysChanged;

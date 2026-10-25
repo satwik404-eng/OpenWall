@@ -3,6 +3,7 @@ import SwiftUI
 struct MotionArtwork: View {
     let preset: String
     var animated = false
+    var framesPerSecond = 24
     var fixedTime: Double? = nil
 
     static func colors(for preset: String) -> [Color] {
@@ -23,7 +24,7 @@ struct MotionArtwork: View {
         let item = MotionCatalog.item(preset)
         let shapes = MotionCatalog.shared.scenes[item.style] ?? []
         let palette = Self.colors(for: preset)
-        TimelineView(.animation(minimumInterval: 1.0 / 24, paused: !animated)) { timeline in
+        TimelineView(.animation(minimumInterval: 1.0 / Double(max(1, framesPerSecond)), paused: !animated)) { timeline in
             Canvas { context, size in
                 let time = fixedTime ?? (animated ? timeline.date.timeIntervalSinceReferenceDate / 8 : 1.7)
                 context.fill(Path(CGRect(origin: .zero, size: size)), with: .color(.black))

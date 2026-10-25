@@ -62,7 +62,7 @@ internal static class ScreenSaver {
                 web.CoreWebView2.NavigationCompleted += async (_, e) => {
                     if (!e.IsSuccess) return;
                     bool paused = state.PauseOnBattery && SystemInformation.PowerStatus.PowerLineStatus == PowerLineStatus.Offline;
-                    await web.ExecuteScriptAsync("initializeWallpaper(" + System.Text.Json.JsonSerializer.Serialize(new { id = item.Id, filename = item.Filename, paused, speed = state.Speed }) + ")");
+                    await web.ExecuteScriptAsync("initializeWallpaper(" + System.Text.Json.JsonSerializer.Serialize(new { id = item.Id, filename = new VideoQualityCache(Path.Combine(root, "VideoQuality")).CachedName(item, state.VideoQuality.GetValueOrDefault(item.Id)) ?? item.Filename, qualityCopy = new VideoQualityCache(Path.Combine(root, "VideoQuality")).CachedName(item, state.VideoQuality.GetValueOrDefault(item.Id)) is not null, paused, speed = state.Speed, motionFPS = state.MotionFPS }) + ")");
                 };
                 web.Source = new Uri("https://app.openwall.local/wallpaper.html");
             } catch { /* Keep a black saver on renderer failure; no dialog over the lock screen. */ }

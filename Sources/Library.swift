@@ -4,10 +4,12 @@ import Observation
 import ServiceManagement
 import UniformTypeIdentifiers
 
-struct Wallpaper: Codable, Identifiable, Equatable {
+struct Wallpaper: Codable, Identifiable, Equatable, Sendable {
     let id: String
     let name: String
     let filename: String?
+    var pixelWidth: Int? = nil
+    var pixelHeight: Int? = nil
     var isVideo: Bool { filename != nil }
     static let presets = MotionCatalog.shared.items.map { Wallpaper(id: $0.id, name: $0.name, filename: nil) }
 }
@@ -22,11 +24,13 @@ struct LibraryState: Codable {
     var playlist: [PlaylistEntry] = []
     var playlistPlayback: [String: PlaylistPlayback] = [:]
     var speed = 1.0
+    var motionFPS = 60
+    var videoQuality: [String: Int] = [:]
 
     init() {}
 
     private enum CodingKeys: String, CodingKey {
-        case videos, assignments, manualPause, pauseOnBattery, pauseInFullScreen, liveLockScreen, playlist, playlistPlayback, speed
+        case videos, assignments, manualPause, pauseOnBattery, pauseInFullScreen, liveLockScreen, playlist, playlistPlayback, speed, motionFPS, videoQuality
     }
     private enum LegacyKeys: String, CodingKey { case shuffleMinutes }
 
@@ -41,6 +45,9 @@ struct LibraryState: Codable {
         playlist = try values.decodeIfPresent([PlaylistEntry].self, forKey: .playlist) ?? []
         playlistPlayback = try values.decodeIfPresent([String: PlaylistPlayback].self, forKey: .playlistPlayback) ?? [:]
         speed = try values.decodeIfPresent(Double.self, forKey: .speed) ?? 1
+        let fps = try values.decodeIfPresent(Int.self, forKey: .motionFPS) ?? 60
+        motionFPS = [24, 60, 120].contains(fps) ? fps : 60
+        videoQuality = try values.decodeIfPresent([String: Int].self, forKey: .videoQuality) ?? [:]
         if !values.contains(.playlist) {
             let legacy = try decoder.container(keyedBy: LegacyKeys.self)
             let minutes = try legacy.decodeIfPresent(Int.self, forKey: .shuffleMinutes) ?? 0
@@ -135,6 +142,9 @@ final class Library {
     var search = ""
     var notice: String?
     var importing = false
+    var qualityBusy: Set<String> = []
+    @ObservationIgnored var qualityJobs: [String: Task<Void, Never>] = [:]
+    @ObservationIgnored var qualityTokens: [String: UUID] = [:]
     var battery = false
     var sleeping = false
     var sessionLocked = false
@@ -181,12 +191,15 @@ final class Library {
     func start() {
         guard !started else { return }
         started = true
+        let qualityRoot = Storage.root.appendingPathComponent("VideoQuality")
+        for stale in (try? FileManager.default.contentsOfDirectory(at: qualityRoot, includingPropertiesForKeys: nil)) ?? [] where stale.lastPathComponent.hasSuffix(".tmp.mov") { try? FileManager.default.removeItem(at: stale) }
         engine = WallpaperEngine()
         refreshDisplays()
         battery = Power.isOnBattery
         loginEnabled = SMAppService.mainApp.status == .enabled
         engine?.onError = { [weak self] message in self?.notice = message }
         restore()
+        Task { await refreshVideoDimensions() }
         syncLockScreen()
         let center = NSWorkspace.shared.notificationCenter
         for (name, locked) in [("com.apple.screenIsLocked", true), ("com.apple.screenIsUnlocked", false)] {
@@ -255,7 +268,7 @@ final class Library {
         updatePlayback()
         for screen in NSScreen.screens {
             guard let id = state.assignments[screen.wallpaperID], let item = wallpapers.first(where: { $0.id == id }) else { continue }
-            engine?.apply(item, to: screen, paused: paused, speed: state.speed)
+            applyToScreen(item, screen: screen)
         }
     }
 
@@ -271,7 +284,7 @@ final class Library {
         }
         updatePlayback()
         for screen in screens {
-            engine?.apply(item, to: screen, paused: paused, speed: state.speed)
+            applyToScreen(item, screen: screen)
         }
         save()
         syncLockScreen()
@@ -307,7 +320,7 @@ final class Library {
             fullScreenTimer = nil
             fullScreenActive = false
         }
-        engine?.setPaused(paused, speed: state.speed)
+        engine?.setPaused(paused, speed: state.speed, motionFPS: state.motionFPS)
         if paused {
             if playlistTimer != nil { checkpointPlaylistClocks() }
         } else if playlistTimer == nil { schedulePlaylistTimer() }
@@ -356,6 +369,7 @@ final class Library {
                     let imported = try await VideoImporter.importFile(url)
                     state.videos.append(Wallpaper(id: imported.id, name: imported.name, filename: imported.filename))
                     selection = imported.id
+                    await refreshVideoDimensions()
                     save()
                 } catch { errors.append("\(url.lastPathComponent): \(error.localizedDescription)") }
             }
@@ -368,6 +382,12 @@ final class Library {
         guard let filename = item.filename else { return }
         if let entry = playlistEntry(for: item.id) { removeFromPlaylist(entry.id) }
         state.assignments = state.assignments.filter { $0.value != item.id }
+        qualityJobs[item.id]?.cancel(); qualityJobs[item.id] = nil
+        qualityTokens.removeValue(forKey: item.id); qualityBusy.remove(item.id)
+        if let copies = try? FileManager.default.contentsOfDirectory(at: Storage.root.appendingPathComponent("VideoQuality"), includingPropertiesForKeys: nil) {
+            for copy in copies where copy.lastPathComponent.hasPrefix(item.id + "-") { try? FileManager.default.removeItem(at: copy) }
+        }
+        state.videoQuality.removeValue(forKey: item.id)
         state.videos.removeAll { $0.id == item.id }
         if selection == item.id { selection = "aurora" }
         restore()

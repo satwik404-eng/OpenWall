@@ -3,3 +3,4 @@
 .art.video{overflow:hidden}.art.video img{width:100%;height:100%;object-fit:cover;display:block}
 
 .art canvas{width:100%;height:100%;display:block}
+.quality-control{position:absolute;right:16px;top:16px;padding:10px 14px;background:#08100ed9;border-radius:10px;display:grid;gap:6px;font-size:13px}.quality-control select{margin-left:8px}.quality-control small{color:#b4c5be}

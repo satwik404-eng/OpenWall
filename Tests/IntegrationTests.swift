@@ -5,6 +5,7 @@ import CoreVideo
 @main struct IntegrationTests {
     @MainActor static func main() async throws {
         _ = NSApplication.shared
+        try await VideoQualityTests.run()
         let display = FullScreenDetector.DisplayGeometry(bounds: CGRect(x: 0, y: 0, width: 1440, height: 900), topSafeArea: 0)
         func detects(_ bounds: CGRect, pid: pid_t = 42, layer: Int = 0, alpha: Double = 1,
                      displays: [FullScreenDetector.DisplayGeometry] = [display]) -> Bool {

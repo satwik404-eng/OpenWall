@@ -21,6 +21,28 @@ Arctic, Violet, Coral, Gold, Midnight Silk, Light Blue, and Teal Green.
 Both platforms consume the same vector catalog, so wave geometry, palettes,
 and motion parameters match. Library cards and screen savers use the same artwork.
 
+## Frame rate and video quality
+
+In **Settings → Motion frame rate**, choose **60 fps**, **120 fps**, or **24 fps · Lower power**.
+120 fps requires a compatible high-refresh display; actual cadence also depends on
+system power and performance. This changes smoothness, not the animation's flow speed.
+The OpenWall screen saver reads the same preference. Native live sign-in movie
+exports keep their existing 24 fps format and are separate from desktop rendering.
+
+A video's preview has its own **Video quality** selector. A 3840 × 2160 source
+has **1080p, 1440p and 4K**; a 2560 × 1440 source has **1080p and 1440p**.
+Below 1080p, **Original** plays the source at its maximum resolution. No option
+upscales the source. Nonstandard sizes also retain an Original choice.
+
+Lower resolutions prepare an actual silent playback copy the first time they
+are chosen. The previous wallpaper keeps playing while preparation finishes.
+Original videos stay intact, and video frame rate is preserved. A codec/encoding
+failure reports the problem and returns the choice to original quality.
+The VideoQuality cache holds at most 2 GiB of completed copies, with 512 MiB per
+copy and one encoder at a time. Long clips that exceed that budget use Original.
+Unused old copies can be evicted; active copies are protected. Removing an import
+removes its copies, and unfinished work is cleaned on the next app launch.
+
 ## Playlist
 
 Add wallpapers, arrange their order with the up/down controls, and give each one

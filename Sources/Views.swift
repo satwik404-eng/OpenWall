@@ -143,10 +143,28 @@ struct LibraryView: View {
         .frame(height: 265)
         .clipShape(RoundedRectangle(cornerRadius: 16))
         .overlay(alignment: .topTrailing) {
-            Text(library.selected.isVideo ? "LOCAL VIDEO" : "GENERATIVE")
-                .font(.system(size: 9, weight: .semibold)).tracking(1)
-                .padding(.horizontal, 10).padding(.vertical, 7)
-                .background(.black.opacity(0.30), in: Capsule()).padding(16)
+            if library.selected.isVideo {
+                VStack(alignment: .trailing, spacing: 6) {
+                    Picker("Video quality", selection: Binding(get: { library.selectedQuality }, set: { library.setVideoQuality($0) })) {
+                        ForEach(library.selectedQualityOptions, id: \.self) { quality in
+                            Text(VideoQuality.title(quality)).tag(quality)
+                        }
+                    }.frame(width: 180)
+                    if library.qualityBusy.contains(library.selected.id) {
+                        Text("Preparing quality copy…").font(.caption)
+                    } else if let width = library.selected.pixelWidth, let height = library.selected.pixelHeight {
+                        Text("Source: \(width) × \(height)").font(.caption).foregroundStyle(.secondary)
+                    }
+                }.padding(12).background(.black.opacity(0.75), in: RoundedRectangle(cornerRadius: 10)).padding(12)
+            }
+        }
+        .overlay(alignment: .topTrailing) {
+            if !library.selected.isVideo {
+                Text("GENERATIVE")
+                    .font(.system(size: 9, weight: .semibold)).tracking(1)
+                    .padding(.horizontal, 10).padding(.vertical, 7)
+                    .background(.black.opacity(0.30), in: Capsule()).padding(16)
+            }
         }
     }
 
@@ -179,6 +197,15 @@ struct LibraryView: View {
                     .onChange(of: library.state.pauseInFullScreen) { library.settingsChanged() }
                 Toggle("Pause on battery power", isOn: $library.state.pauseOnBattery)
                     .onChange(of: library.state.pauseOnBattery) { library.settingsChanged() }
+                Picker("Motion frame rate", selection: $library.state.motionFPS) {
+                    Text("24 fps · Lower power").tag(24)
+                    Text("60 fps").tag(60)
+                    Text("120 fps").tag(120)
+                }.onChange(of: library.state.motionFPS) { library.settingsChanged() }
+                Text("120 fps needs a high-refresh display. Actual frame rate depends on the display and system power settings. Higher rates use more power.")
+                    .font(.caption).foregroundStyle(.secondary)
+                Text("Choose video quality on a video's preview. Available resolutions follow its source. Lower-quality playback copies use a cache limited to 2 GB; originals are preserved.")
+                    .font(.caption).foregroundStyle(.secondary)
                 Picker("Video speed", selection: $library.state.speed) {
                     Text("0.5×").tag(0.5); Text("1×").tag(1.0); Text("1.5×").tag(1.5); Text("2×").tag(2.0)
                 }.onChange(of: library.state.speed) { library.settingsChanged() }
@@ -209,7 +236,7 @@ struct LibraryView: View {
             Section("Local by design") {
                 Text("No account, analytics, subscription, or cloud connection. Imported videos are copied into OpenWall’s library; your original files stay where they are.")
                 Button("Show local library in Finder") { NSWorkspace.shared.open(Storage.root) }
-                Text("OpenWall 1.3.1 · MIT License\nIndependent software. Not affiliated with Wallper.").font(.caption).foregroundStyle(.secondary)
+                Text("OpenWall 1.4.0 · MIT License\nIndependent software. Not affiliated with Wallper.").font(.caption).foregroundStyle(.secondary)
             }
         }.formStyle(.grouped)
     }

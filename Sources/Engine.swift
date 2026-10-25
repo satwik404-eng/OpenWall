@@ -44,11 +44,13 @@ final class WallpaperSession {
     let item: Wallpaper
     private var playbackPaused: Bool
     private var playbackSpeed: Double
+    private var motionFPS: Int
 
-    init(item: Wallpaper, screen: NSScreen, paused: Bool, speed: Double, onError: @escaping (String) -> Void) {
+    init(item: Wallpaper, screen: NSScreen, paused: Bool, speed: Double, motionFPS: Int = 24, videoURL: URL? = nil, onError: @escaping (String) -> Void) {
         self.item = item
         playbackPaused = paused
         playbackSpeed = speed
+        self.motionFPS = min(motionFPS, max(1, screen.maximumFramesPerSecond))
         window = DesktopWindow(contentRect: screen.frame, styleMask: .borderless, backing: .buffered, defer: false, screen: screen)
         window.setFrame(screen.frame, display: false)
         window.level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.desktopIconWindow)) - 1)
@@ -65,7 +67,7 @@ final class WallpaperSession {
             let player = AVQueuePlayer()
             player.isMuted = true
             player.preventsDisplaySleepDuringVideoPlayback = false
-            let template = AVPlayerItem(url: Storage.media.appendingPathComponent(filename))
+            let template = AVPlayerItem(url: videoURL ?? Storage.media.appendingPathComponent(filename))
             looper = AVPlayerLooper(player: player, templateItem: template)
             self.player = player
             surface.playerLayer.player = player
@@ -78,21 +80,23 @@ final class WallpaperSession {
             }
             if !paused { player.playImmediately(atRate: Float(speed)) }
         } else {
-            window.contentView = NSHostingView(rootView: MotionArtwork(preset: item.id, animated: !paused))
+            window.contentView = NSHostingView(rootView: MotionArtwork(preset: item.id, animated: !paused, framesPerSecond: self.motionFPS))
         }
         window.orderFrontRegardless()
     }
 
-    func setPaused(_ paused: Bool, speed: Double) {
+    func setPaused(_ paused: Bool, speed: Double, motionFPS: Int = 24) {
         // Status checks must not restart AVPlayer or rebuild the animation host.
-        guard paused != playbackPaused || speed != playbackSpeed else { return }
+        let fps = min(motionFPS, max(1, window.screen?.maximumFramesPerSecond ?? 60))
+        guard paused != playbackPaused || speed != playbackSpeed || fps != self.motionFPS else { return }
+        self.motionFPS = fps
         playbackPaused = paused
         playbackSpeed = speed
         if let player {
             if paused { player.pause() }
             else { player.playImmediately(atRate: Float(speed)) }
         } else if let host = window.contentView as? NSHostingView<MotionArtwork> {
-            host.rootView = MotionArtwork(preset: item.id, animated: !paused)
+            host.rootView = MotionArtwork(preset: item.id, animated: !paused, framesPerSecond: self.motionFPS)
         }
     }
 
@@ -127,16 +131,16 @@ final class WallpaperEngine {
     private var sessions: [String: WallpaperSession] = [:]
     var onError: ((String) -> Void)?
 
-    func apply(_ item: Wallpaper, to screen: NSScreen, paused: Bool, speed: Double) {
+    func apply(_ item: Wallpaper, to screen: NSScreen, paused: Bool, speed: Double, motionFPS: Int = 24, videoURL: URL? = nil) {
         if let filename = item.filename,
            !FileManager.default.fileExists(atPath: Storage.media.appendingPathComponent(filename).path) {
             onError?("\(item.name) is missing from the local library. Import the video again.")
             return
         }
         sessions.removeValue(forKey: screen.wallpaperID)?.close()
-        sessions[screen.wallpaperID] = WallpaperSession(item: item, screen: screen, paused: paused, speed: speed) { [weak self] in self?.onError?($0) }
+        sessions[screen.wallpaperID] = WallpaperSession(item: item, screen: screen, paused: paused, speed: speed, motionFPS: motionFPS, videoURL: videoURL) { [weak self] in self?.onError?($0) }
     }
-    func setPaused(_ paused: Bool, speed: Double) { sessions.values.forEach { $0.setPaused(paused, speed: speed) } }
+    func setPaused(_ paused: Bool, speed: Double, motionFPS: Int = 24) { sessions.values.forEach { $0.setPaused(paused, speed: speed, motionFPS: motionFPS) } }
     func closeAll() { sessions.values.forEach { $0.close() }; sessions.removeAll() }
     func reorder() { sessions.values.forEach { $0.window.orderFrontRegardless() } }
     var count: Int { sessions.count }
