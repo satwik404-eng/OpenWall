@@ -16,11 +16,18 @@ window.MotionRenderer = (() => {
       return [shape.pivot[0] + a * co - b * si + dx, shape.pivot[1] + a * si + b * co + dy];
     });
   }
-  function shading(ctx, fill, palette, w, h) {
+  function gradientMotion(shape,time) {
+    const t=time*shape.rate+shape.phase,angle=shape.rotation+Math.sin(t)*shape.rotate;
+    const scale=1+Math.sin(t)*shape.pulse;
+    const a=(shape.fill.start[0]-shape.pivot[0])*scale,b=(shape.fill.start[1]-shape.pivot[1])*scale;
+    return {center:[shape.pivot[0]+a*Math.cos(angle)-b*Math.sin(angle)+Math.sin(t)*shape.driftX,
+                   shape.pivot[1]+a*Math.sin(angle)+b*Math.cos(angle)+Math.cos(t)*shape.driftY],scale};
+  }
+  function shading(ctx, fill, palette, w, h, motion={center:fill.start,scale:1}) {
     const color = stop => { const c = stop.color < 0 ? [1,1,1] : palette[stop.color]; return `rgba(${c.map(n => n*255).join(',')},${stop.alpha})`; };
     if (fill.kind === 'solid') return color(fill.stops[0]);
     const gradient = fill.kind === 'radial'
-      ? ctx.createRadialGradient(fill.start[0]*w,fill.start[1]*h,0,fill.start[0]*w,fill.start[1]*h,fill.end[1]*Math.min(w,h))
+      ? ctx.createRadialGradient(motion.center[0]*w,motion.center[1]*h,0,motion.center[0]*w,motion.center[1]*h,fill.end[1]*Math.min(w,h)*motion.scale)
       : ctx.createLinearGradient(fill.start[0]*w,fill.start[1]*h,fill.end[0]*w,fill.end[1]*h);
     for (const stop of fill.stops) gradient.addColorStop(stop.location,color(stop));
     return gradient;
@@ -40,11 +47,11 @@ window.MotionRenderer = (() => {
         for(let i=1;i<points.length;i++)ctx.lineTo(points[i][0]*w,points[i][1]*h);
         if(shape.closed)ctx.closePath();
       }
-      const shader = shading(ctx,shape.fill,item.palette,w,h);
+      const shader = shading(ctx,shape.fill,item.palette,w,h,gradientMotion(shape,time));
       if(shape.stroke>0){ctx.strokeStyle=shader;ctx.lineWidth=shape.stroke*Math.min(w,h);ctx.stroke();}
       else{ctx.fillStyle=shader;ctx.fill();}
     }
     ctx.globalAlpha=1;
   }
-  return {draw,vertices,items};
+  return {draw,vertices,gradientMotion,items};
 })();

@@ -1,7 +1,10 @@
 # Changelog
 
-## 1.3.1 — Constellation live motion fix
+## 1.3.1 — Clearer motion and known bug fixes
 
+- Make all motion styles easier to see at 1×, with broader Dune crest movement and individually tuned drift, rotation and breathing.
+- Move Bloom’s radial glow with its shapes rather than leaving the gradient fixed.
+- Preserve smooth loop positions and velocities at the existing 24 fps.
 - Give Constellation visible star-field drift, gentle rotation and individual star twinkling in all eight palettes.
 - Keep constellation lines attached to their stars through a shared motion transform.
 - Keep Mac live wallpaper windows above the system background while still below desktop icons and other apps.

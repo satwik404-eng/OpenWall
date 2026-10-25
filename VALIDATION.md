@@ -1,13 +1,18 @@
 # Validation — 24 October 2026
 
-## Version 1.3.1 — Constellation live motion
+## Version 1.3.1 — Clearer live motion
 
-The native renderer changes 6,847 pixels at 480 × 270 between frames separated
-by two seconds. All 89 artworks still render distinctly, all scenes loop, and
-11,490 Mac/Windows coordinates match within 1e-12. Mac playback integration checks
-pass with wallpaper windows below desktop icons. Version 1.3.1 was installed;
-the user selected Constellation Arctic and confirmed visible live movement.
-Changed motion export caches carry a catalog revision so earlier renders regenerate.
+Rendered-frame checks sample four phases per style, two seconds apart at 1×,
+using the dark Midnight Silk palette at 480 × 270. Every style visibly changes:
+Dunes changes at least 6,645 pixels, Bloom 46,529 and Constellation 6,030.
+All 89 artworks render distinctly. Geometry position and velocity, plus opacity,
+are continuous at loop boundaries. All 11,490 Mac/Windows geometry coordinates
+match within 1e-12; moving gradient centers, radii and opacity also match.
+Animation remains capped at 24 fps. Motion export caches carry catalog revision
+3 so older generated movies regenerate. Constellation’s earlier installed fix
+was visually confirmed by the user. The broader movement update is installed
+as Mac build 7; Dune horizon Teal Green is selected and the native integration
+suite passes. The app and installed screen saver signatures verify.
 Windows runtime verification remains subject to the 1.3.0 limits below.
 
 ## Version 1.3.0

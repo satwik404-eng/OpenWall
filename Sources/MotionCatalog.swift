@@ -16,6 +16,14 @@ struct MotionShape: Decodable {
     let rotation, rotate, driftX, driftY, pulse, rate, phase, warpX, warpY, frequency, pixelRadius, opacityPulse, opacityRate, opacityPhase: Double
     let fill: MotionFill
     func opacity(time: Double) -> Double { 1 - opacityPulse * (0.5 + 0.5 * sin(time * opacityRate + opacityPhase)) }
+    func gradientCenter(time: Double) -> [Double] {
+        let t = time * rate + phase, angle = rotation + sin(t) * rotate
+        let a = (fill.start[0] - pivot[0]) * gradientScale(time: time)
+        let b = (fill.start[1] - pivot[1]) * gradientScale(time: time)
+        return [pivot[0] + a * cos(angle) - b * sin(angle) + sin(t) * driftX,
+                pivot[1] + a * sin(angle) + b * cos(angle) + cos(t) * driftY]
+    }
+    func gradientScale(time: Double) -> Double { 1 + sin(time * rate + phase) * pulse }
     func vertices(time: Double) -> [[Double]] {
         let t = time * rate + phase
         let angle = rotation + sin(t) * rotate

@@ -5,7 +5,7 @@ enum MotionCGRenderer {
     static func draw(_ id: String, time: Double, size: CGSize, in context: CGContext) {
         let catalog = MotionCatalog.shared, item = MotionCatalog.item(id)
         let rect = CGRect(origin: .zero, size: size)
-        func paint(_ fill: MotionFill) {
+        func paint(_ fill: MotionFill, center: [Double]? = nil, radiusScale: Double = 1) {
             let colors = fill.stops.map { stop -> CGColor in
                 let c = stop.color < 0 ? [1.0,1.0,1.0] : item.palette[stop.color]
                 return CGColor(colorSpace: CGColorSpace(name: CGColorSpace.sRGB)!, components: [CGFloat(c[0]), CGFloat(c[1]), CGFloat(c[2]), CGFloat(stop.alpha)])!
@@ -16,7 +16,9 @@ enum MotionCGRenderer {
             let start = CGPoint(x: fill.start[0] * size.width, y: fill.start[1] * size.height)
             let options: CGGradientDrawingOptions = [.drawsBeforeStartLocation, .drawsAfterEndLocation]
             if fill.kind == "radial" {
-                context.drawRadialGradient(gradient, startCenter: start, startRadius: 0, endCenter: start, endRadius: fill.end[1] * min(size.width, size.height), options: options)
+                let origin = center ?? fill.start
+                let movingCenter = CGPoint(x: origin[0] * size.width, y: origin[1] * size.height)
+                context.drawRadialGradient(gradient, startCenter: movingCenter, startRadius: 0, endCenter: movingCenter, endRadius: fill.end[1] * min(size.width, size.height) * radiusScale, options: options)
             } else {
                 context.drawLinearGradient(gradient, start: start, end: CGPoint(x: fill.end[0] * size.width, y: fill.end[1] * size.height), options: options)
             }
@@ -35,7 +37,7 @@ enum MotionCGRenderer {
                 if shape.closed { context.closePath() }
             }
             if shape.stroke > 0 { context.setLineWidth(shape.stroke * min(size.width, size.height)); context.replacePathWithStrokedPath() }
-            context.clip(); paint(shape.fill); context.restoreGState()
+            context.clip(); paint(shape.fill, center: shape.gradientCenter(time: time), radiusScale: shape.gradientScale(time: time)); context.restoreGState()
         }
     }
 }
